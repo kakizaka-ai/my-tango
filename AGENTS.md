@@ -1,6 +1,6 @@
 # AGENTS.md（Codex などへの作業ルール）
 
-このリポジトリは、**マイ単語帳**（ブラウザだけで動く静的ページ）です。説明は `README.md`、データの形式は `docs/data-format.md`。
+このリポジトリは、**マイ単語帳**（ブラウザだけで動く静的ページ）です。説明は `README.md`、データの形式は `docs/data-format.md`、**引き継ぎの全体は `docs/codex-handoff.md`（最初に読む）**。
 
 ## 直す場所
 - 画面や動作を直すときは、**`src/app.html`** を直す。`index.html` は、生成物なので、直接は直さない。

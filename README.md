@@ -28,6 +28,7 @@ TOEIC 用の、自分だけの単語帳です。分からなかった英単語�
 | `build.py` | `src/` から `index.html` を作る |
 | `supabase/setup.sql` | 同期に使う、Supabase の設定（SQL） |
 | `data/words-backup.json` | **claude.ai に保存してあった語（149語）のバックアップ** |
+| `docs/codex-handoff.md` | **Codex への引き継ぎ**（最初に読む） |
 | `docs/data-format.md` | 語のデータの形式 |
 | `docs/wordbank_spec.md` | もとの TOEIC 単語帳（3,141語）の仕様 |
 | `tools/dev_server.py` | 試験用のサーバー（AI と同期の「にせもの」付き） |
