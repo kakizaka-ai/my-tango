@@ -85,7 +85,7 @@ PC とスマホで、同じ単語帳にする機能です。無料の枠で足�
    （同じ SQL は、アプリの「設定」の中の「Supabase で最初に1回だけ実行する SQL」にもあります）
 3. 「Project Settings」→「API」を開き、次の2つを控える。
    - **Project URL**（`https://xxxx.supabase.co`）
-   - **anon public** のキー
+   - **公開用のキー**：`anon public`（eyJ…で始まる）、または`Publishable key`（sb_publishable_…で始まる）。どちらでも使えます。**秘密のキー（service_role、Secret key）は、絶対に入れない。**
 
 ### アプリに入れる（PC とスマホの両方で）
 1. 「設定」→「PC とスマホの同期」に、URL と anon キーを入れる。

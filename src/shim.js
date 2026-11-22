@@ -79,9 +79,12 @@
 
   // --- Supabase (RPC functions, no custom headers: plain apikey + Authorization, which every project's CORS allows)
   function rpc(name, body) {
+    var headers = { apikey: remote.key, 'Content-Type': 'application/json' };
+    // the older anon key is a JWT (eyJ…) and is also sent as the bearer token; the newer sb_publishable_… key is not a JWT and goes in apikey only
+    if (/^eyJ/.test(remote.key)) headers.Authorization = 'Bearer ' + remote.key;
     return fetch(remote.url + '/rest/v1/rpc/' + name, {
       method: 'POST',
-      headers: { apikey: remote.key, Authorization: 'Bearer ' + remote.key, 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(body)
     }).then(function (r) {
       if (!r.ok) {

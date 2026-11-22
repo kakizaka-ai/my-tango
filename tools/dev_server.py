@@ -76,8 +76,12 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(404, {"message": "not found"})
 
     def _supabase(self, fn, body):
-        if not self.headers.get("apikey") or not (self.headers.get("Authorization") or "").startswith("Bearer "):
+        key = self.headers.get("apikey") or ""
+        if not key:
             return self._json(401, {"message": "No API key found in request"})
+        # like Supabase: a JWT-style key (eyJ…) must also come as a bearer token; the newer sb_publishable_… key must not
+        if key.startswith("eyJ") != (self.headers.get("Authorization") or "").startswith("Bearer "):
+            return self._json(401, {"message": "key / Authorization mismatch"})
         STATE["calls"].append(fn)
         if STATE["fail"]:
             return self._json(503, {"message": "down for the test"})
