@@ -1,0 +1,161 @@
+<!-- 設定 dialog (added by build.py; not part of the claude.ai artifact) -->
+<style>
+  .gear { align-self: center; margin-left: auto; min-height: 32px; padding: 2px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
+  .gear:hover { border-color: var(--ink-muted); }
+  dialog#setDlg { width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--ink); }
+  dialog#setDlg::backdrop { background: rgba(15, 23, 42, 0.5); }
+  #setDlg .sethead { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); }
+  #setDlg h2 { margin: 0; font-size: 16px; letter-spacing: 0; color: var(--ink); }
+  #setDlg .setbody { display: flex; flex-direction: column; gap: 18px; padding: 14px 16px 18px; }
+  #setDlg fieldset { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  #setDlg legend { padding: 0 6px; font-weight: 700; font-size: 14px; }
+  #setDlg label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-muted); }
+  #setDlg input[type="text"], #setDlg input[type="password"], #setDlg input[type="url"], #setDlg textarea { width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 14px; }
+  #setDlg textarea { min-height: 90px; font-family: var(--font-mono); font-size: 12px; }
+  #setDlg .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  #setDlg details summary { cursor: pointer; font-size: 13px; color: var(--accent-strong); }
+  #setDlg .check { flex-direction: row; align-items: center; gap: 8px; }
+  #setMsg { margin: 0; min-height: 20px; font-size: 13px; white-space: pre-wrap; }
+  #setMsg.err { color: var(--bad); }
+  #setMsg.ok { color: var(--good); }
+</style>
+<dialog id="setDlg" aria-labelledby="setTitle">
+  <div class="sethead"><h2 id="setTitle">設定</h2><button type="button" class="btn sm" id="setClose">閉じる</button></div>
+  <div class="setbody">
+    <p id="setMsg" role="status" aria-live="polite"></p>
+
+    <fieldset>
+      <legend>データ（バックアップと取り込み）</legend>
+      <p class="hint">語は、このブラウザの中に保存されています。ときどき、バックアップを保存してください。端末を変えるときは、読み込みで移せます。</p>
+      <div class="row">
+        <button type="button" class="btn sm primary" id="bkSave">すべて保存（JSON）</button>
+        <label class="btn sm" style="cursor:pointer">ファイルから読み込む<input type="file" id="bkFile" accept=".json,application/json" hidden></label>
+      </div>
+      <label>JSON を貼り付けて取り込む（バックアップ、または Codex などが作った語のデータ）
+        <textarea id="bkText" placeholder='[{"word":"postpone","pos":"動","meaning_ja":"延期する",…}]'></textarea>
+      </label>
+      <div class="row">
+        <button type="button" class="btn sm" id="bkPaste">貼り付けを取り込む</button>
+        <label class="check"><input type="checkbox" id="bkOver"> 同じ語があれば、上書きする</label>
+      </div>
+      <p class="hint">形式は、docs/data-format.md にあります。word だけでも取り込めます（意味などは、空のままです）。</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>AI で自動作成（OpenAI）</legend>
+      <p class="hint">語を入れると、意味・発音記号・例文などを、AI が作ります。キーは、このブラウザの中だけに保存されます。使った分の料金は、あなたの OpenAI アカウントにかかります。</p>
+      <label>API キー<input type="password" id="aiKey" autocomplete="off" placeholder="sk-…"></label>
+      <label>モデル<input type="text" id="aiModel" placeholder="gpt-4.1-mini"></label>
+      <label>API の場所（ふつうは、そのまま）<input type="url" id="aiBase" placeholder="https://api.openai.com/v1"></label>
+      <div class="row"><button type="button" class="btn sm" id="aiTest">試す</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>PC とスマホの同期（Supabase）</legend>
+      <p class="hint">同じ設定を、PC とスマホの両方に入れると、同じ単語帳になります。設定のしかたは、README.md を見てください。</p>
+      <label>Project URL<input type="url" id="spUrl" placeholder="https://xxxxxxxx.supabase.co"></label>
+      <label>公開キー（anon key）<input type="text" id="spKey" autocomplete="off" placeholder="eyJ…"></label>
+      <label>同期コード（パスワードと同じです。16文字以上）<input type="password" id="spCode" autocomplete="off"></label>
+      <div class="row">
+        <button type="button" class="btn sm" id="spGen">同期コードを作る</button>
+        <button type="button" class="btn sm" id="spShow">表示する</button>
+        <button type="button" class="btn sm" id="spTest">接続を試す</button>
+      </div>
+      <details>
+        <summary>Supabase で最初に1回だけ実行する SQL</summary>
+        <textarea id="spSql" readonly>/*SQL*/</textarea>
+        <div class="row"><button type="button" class="btn sm" id="spCopy">SQL をコピー</button></div>
+      </details>
+    </fieldset>
+
+    <div class="row">
+      <button type="button" class="btn primary" id="setSave">保存して再読み込み</button>
+      <button type="button" class="btn" id="setClear">この端末の設定を消す</button>
+    </div>
+  </div>
+</dialog>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var M = window.__mytango, dlg = $('setDlg');
+  function msg(t, kind) { var el = $('setMsg'); el.textContent = t || ''; el.className = kind || ''; }
+  function fill() {
+    var c = M.settings.get();
+    $('aiKey').value = c.openaiKey || ''; $('aiModel').value = c.model || ''; $('aiBase').value = c.openaiBase || '';
+    $('spUrl').value = c.supaUrl || ''; $('spKey').value = c.supaKey || ''; $('spCode').value = c.syncCode || '';
+    $('spCode').type = 'password'; $('spShow').textContent = '表示する';
+  }
+  $('setBtn').addEventListener('click', function () { fill(); msg(''); if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); });
+  $('setClose').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+
+  // --- backup / import
+  var stamp = function () { var d = new Date(); return d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); };
+  $('bkSave').addEventListener('click', function () {
+    var data = JSON.stringify(M.exportAll(), null, 1);
+    window.claude.use('downloads').then(function (d) { return d.save({ filename: 'mytango-backup-' + stamp() + '.json', data: data }); })
+      .then(function () { msg('バックアップを保存しました（' + M.exportAll().count + '語）。', 'ok'); }, function () { msg('保存できませんでした。', 'err'); });
+  });
+  function runImport(text) {
+    var v; try { v = JSON.parse(text); } catch (e) { v = M.parseJsonLoose(text); }
+    var list = Array.isArray(v) ? v : (v && Array.isArray(v.words) ? v.words : null);
+    if (!list) { msg('JSON を読み取れませんでした。配列、または {"words": […]} の形にしてください。', 'err'); return; }
+    msg('取り込んでいます…（' + list.length + '件）');
+    M.importWords(list, { overwrite: $('bkOver').checked }).then(function (r) {
+      msg('取り込みました。追加 ' + r.added + '語、上書き ' + r.updated + '語、飛ばした語（すでにある）' + r.skipped + '語、読めなかったもの ' + r.invalid + '件。', 'ok');
+    }, function (e) { msg('取り込み中に止まりました：' + (e && (e.message || e.code) || e), 'err'); });
+  }
+  $('bkFile').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    var r = new FileReader(); r.onload = function () { runImport(String(r.result)); }; r.readAsText(f); this.value = '';
+  });
+  $('bkPaste').addEventListener('click', function () { var t = $('bkText').value.trim(); if (!t) { msg('貼り付ける欄が、空です。', 'err'); return; } runImport(t); });
+
+  // --- AI / sync tests
+  function stash() {   // the form values, without saving yet
+    return { openaiKey: $('aiKey').value.trim(), model: $('aiModel').value.trim(), openaiBase: $('aiBase').value.trim(),
+      supaUrl: $('spUrl').value.trim(), supaKey: $('spKey').value.trim(), syncCode: $('spCode').value.trim() };
+  }
+  $('aiTest').addEventListener('click', function () {
+    var cur = M.settings.get(), f = stash();
+    M.settings.set(Object.assign({}, cur, { openaiKey: f.openaiKey, model: f.model, openaiBase: f.openaiBase }));   // the test reads the saved settings
+    msg('AI に問い合わせています…');
+    M.testModel().then(function (r) { msg(r.ok ? 'AI につながりました。' : 'うまくいきませんでした：' + r.error, r.ok ? 'ok' : 'err'); });
+  });
+  $('spTest').addEventListener('click', function () {
+    var f = stash();
+    if (!f.supaUrl || !f.supaKey || f.syncCode.length < 16) { msg('URL、公開キー、16文字以上の同期コードを入れてください。', 'err'); return; }
+    msg('接続しています…');
+    M.testSupabase(f.supaUrl, f.supaKey, f.syncCode).then(function (r) {
+      msg(r.ok ? 'つながりました。（このコードの語は、サーバーに ' + (r.rows ? '1件以上' : 'まだありません') + '）' : 'つながりません：' + r.error + '\nURL・キー・SQL の実行を確かめてください。', r.ok ? 'ok' : 'err');
+    });
+  });
+  $('spGen').addEventListener('click', function () {
+    var a = new Uint8Array(24); crypto.getRandomValues(a);
+    var abc = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789', s = '';
+    a.forEach(function (n) { s += abc.charAt(n % abc.length); });
+    $('spCode').value = s; $('spCode').type = 'text'; $('spShow').textContent = '隠す';
+    msg('新しい同期コードを作りました。別の端末にも、同じコードを入れてください。控えておいてください。', 'ok');
+  });
+  $('spShow').addEventListener('click', function () {
+    var show = $('spCode').type === 'password'; $('spCode').type = show ? 'text' : 'password'; this.textContent = show ? '隠す' : '表示する';
+  });
+  $('spCopy').addEventListener('click', function () {
+    var t = $('spSql'); t.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject()).then(function () { msg('SQL をコピーしました。', 'ok'); }, function () { msg('コピーできませんでした。選んだ部分を、手でコピーしてください。', 'err'); });
+  });
+
+  // --- save / clear
+  $('setSave').addEventListener('click', function () {
+    var f = stash();
+    if ((f.supaUrl || f.supaKey || f.syncCode) && !(f.supaUrl && f.supaKey && f.syncCode.length >= 16)) { msg('同期を使うには、URL、公開キー、16文字以上の同期コードが、すべて必要です。', 'err'); return; }
+    var o = {}; Object.keys(f).forEach(function (k) { if (f[k]) o[k] = f[k]; });
+    M.settings.set(o); location.reload();
+  });
+  $('setClear').addEventListener('click', function () {
+    if (!confirm('この端末の設定（API キーと同期の設定）を消します。語のデータは、消えません。よろしいですか。')) return;
+    M.settings.set({}); location.reload();
+  });
+})();
+</script>

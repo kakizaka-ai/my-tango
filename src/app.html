@@ -1,0 +1,1493 @@
+<title>マイ単語帳</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+  /* Layout: one phone-first column. A header with live counts, three tabs (add / list / review), one job per tab. */
+  :root {
+    --bg: #f1f4f8;
+    --surface: #ffffff;
+    --surface-2: #e6ebf2;
+    --ink: #182230;
+    --ink-muted: #64748b;
+    --line: #d5dce6;
+    --accent: #2563eb;
+    --accent-strong: #1d4ed8;
+    --on-accent: #ffffff;
+    --hl: #c2570c;
+    --good: #15803d;
+    --good-fill: #22c55e;
+    --bad: #b91c1c;
+    --warn: #b45309;
+    --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c1118; --surface: #151c26; --surface-2: #212a37; --ink: #e6ebf2; --ink-muted: #94a3b8; --line: #2a3442;
+      --accent: #60a5fa; --accent-strong: #93c5fd; --on-accent: #0b1220; --hl: #fb923c;
+      --good: #4ade80; --good-fill: #22c55e; --bad: #f87171; --warn: #fbbf24; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c1118; --surface: #151c26; --surface-2: #212a37; --ink: #e6ebf2; --ink-muted: #94a3b8; --line: #2a3442;
+    --accent: #60a5fa; --accent-strong: #93c5fd; --on-accent: #0b1220; --hl: #fb923c;
+    --good: #4ade80; --good-fill: #22c55e; --bad: #f87171; --warn: #fbbf24; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.7;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 20px 40px;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+  header { display: flex; flex-direction: column; gap: 10px; }
+  h1 { margin: 0; font-size: 22px; line-height: 1.3; font-weight: 700; }
+  .stats { display: flex; gap: 18px; margin: 0; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-muted); }
+  .stats b { font-size: 20px; font-weight: 600; color: var(--ink); margin-right: 3px; }
+  .stats .good b { color: var(--good); }
+
+  .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--surface-2); border-radius: 12px; }
+  .tab { border: 0; background: transparent; padding: 9px 6px; border-radius: 9px; font-weight: 500; cursor: pointer; color: var(--ink-muted); }
+  .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12); }
+
+  #status { margin: 0; min-height: 22px; font-size: 13.5px; color: var(--ink-muted); }
+  #status.err, #genNote.err { color: var(--bad); }
+  #status.ok, #genNote.ok { color: var(--good); }
+  #genNote:empty { display: none; }
+
+  .panel { display: flex; flex-direction: column; gap: 12px; }
+  .panel[hidden] { display: none; }
+  h2 { margin: 6px 0 0; font-size: 13px; letter-spacing: 0.06em; color: var(--ink-muted); font-weight: 500; }
+  label.cap { font-size: 13px; color: var(--ink-muted); }
+  textarea, input[type="text"], input[type="search"], select {
+    width: 100%; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  textarea { min-height: 128px; resize: vertical; font-size: 16px; line-height: 1.6; }
+  .hint { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 500; cursor: pointer; }
+  .btn:hover:not(:disabled) { border-color: var(--ink-muted); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .btn[hidden], .notice[hidden] { display: none; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-strong); border-color: var(--accent-strong); }
+  .btn.sm { min-height: 34px; padding: 4px 12px; border-radius: 9px; font-size: 13px; }
+  .btn.danger { color: var(--bad); }
+  .actrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  .actrow .primary { flex: 1 1 180px; }
+
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .item { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .ih { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .w { font-weight: 700; font-size: 18px; overflow-wrap: anywhere; }
+  .ipa { color: var(--ink-muted); font-size: 13.5px; overflow-wrap: anywhere; }
+  .spk { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg); color: var(--accent-strong); cursor: pointer; flex: none; }
+  .spk:hover { border-color: var(--accent); }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip { font-size: 11.5px; padding: 1px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-muted); background: var(--bg); }
+  .chip.st-d { color: var(--good); border-color: var(--good); }
+  .chip.st-r { color: var(--warn); border-color: var(--warn); }
+  .mn { margin: 0; font-size: 15px; }
+  .ex { margin: 0; font-size: 14.5px; overflow-wrap: anywhere; }
+  .ex em { font-style: normal; font-weight: 700; color: var(--hl); }
+  .exja, .hw { margin: 0; font-size: 12.5px; color: var(--ink-muted); }
+  .issue { margin: 0; font-size: 12.5px; color: var(--warn); }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+
+  .filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .filters > * { grid-column: span 2; }
+  .filters .half { grid-column: span 3; }
+  .filters .full { grid-column: 1 / -1; }
+  @media (max-width: 600px) { .filters > * { grid-column: span 3; } .filters .full { grid-column: 1 / -1; } }   /* two selects per row on a phone, so labels aren't cut off */
+  .two { display: flex; flex-wrap: wrap; gap: 8px; }
+  .two select { flex: 1 1 150px; width: auto; min-width: 0; }
+  .scope { display: flex; flex-direction: column; gap: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip.tog { display: inline-flex; align-items: baseline; gap: 6px; min-height: 36px; align-items: center; padding: 4px 12px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .chip.tog .n { font-size: 11px; color: var(--ink-muted); }
+  .chip.tog.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .chip.tog.on .n { color: var(--on-accent); opacity: 0.8; }
+  .units { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px 12px 12px; }
+  .units[hidden] { display: none; }
+  .units summary { cursor: pointer; padding: 8px 0; font-size: 13.5px; font-weight: 500; line-height: 1.5; }
+  .units .chips { margin-bottom: 8px; }
+  .pendcard { background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .pendcard + .pendcard, #pend .actrow { margin-top: 2px; }
+  .sense { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); cursor: pointer; }
+  .sense input { width: 22px; height: 22px; flex: none; margin-top: 2px; accent-color: var(--accent); }
+  .sense .ex { font-size: 14px; }
+  .sense .ex em { font-style: normal; font-weight: 700; color: var(--hl); }
+  .sense .exja { font-size: 12.5px; color: var(--ink-muted); }
+  #pend { display: flex; flex-direction: column; gap: 10px; }
+  #pend:empty { display: none; }
+  .voicebox { display: flex; flex-direction: column; gap: 6px; }
+  .voicebox .two select { flex: 1 1 140px; }
+  .chip.src { color: var(--accent-strong); border-color: var(--accent); }
+  .srcbar { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .srcbar[hidden] { display: none; }
+  .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .selbar[hidden], .seltools[hidden] { display: none; }
+  .seltools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; flex: 1 1 0; min-width: 0; }
+  .selcount { font-size: 13px; color: var(--ink-muted); margin-right: auto; }
+  .selcb { width: 22px; height: 22px; flex: none; accent-color: var(--accent); cursor: pointer; }
+  .item.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+  .item.selectable { cursor: pointer; }
+  .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; padding: 18px 16px; color: var(--ink-muted); font-size: 14px; }
+  .empty b { color: var(--ink); }
+
+  .notice { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; display: flex; flex-direction: column; gap: 6px; }
+  .notice.err { border-left-color: var(--bad); color: var(--bad); }
+  .notice p { margin: 0; }
+  .notice .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+  .edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+  .edit .full { grid-column: 1 / -1; }
+  .edit label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink-muted); }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .card .qprog { margin: 0; font-size: 16px; color: var(--ink-muted); }
+  .card .qhead { margin: 0; font-size: 12px; color: var(--ink-muted); letter-spacing: 0.06em; }
+  .card .qwrap { display: flex; align-items: center; gap: 12px; }
+  .card .big { font-size: 30px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; margin: 0; }
+  .card .qpos { margin: -4px 0 4px; font-size: 15px; color: var(--ink-muted); }
+  .spk.lg { width: 44px; height: 44px; }
+  .exbtn { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink-muted); font-size: 13px; font-weight: 500; cursor: pointer; flex: none; }
+  .exbtn:hover { border-color: var(--ink-muted); }
+  .exbtn.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+  /* The review screen never selects text or opens the callout menu while a button is held, and its layout never moves:
+     the answer box has a fixed height, so the buttons stay under the finger when the answer appears. */
+  #p-rev { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  .qans > :first-child { margin-top: auto; }
+  .qans > :last-child { margin-bottom: auto; }
+  /* on a phone the card comes first, so わかる / わからない are on screen without scrolling; the range picker follows below */
+  #p-rev > #revBody { order: -1; }
+  .qans { height: clamp(110px, calc(100vh - 540px), 196px); height: clamp(110px, calc(100dvh - 540px), 196px); overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; }
+  .qans.on { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .qans b { font-size: 20px; line-height: 1.4; overflow-wrap: anywhere; }
+  .qans .exen { margin: 0; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+  .qans .exen em { font-style: normal; font-weight: 700; color: var(--hl); }
+  .qans .exjp { margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--ink-muted); }
+  .qans .exdv, .item .dv { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+  .qans .exbase { margin: 0; font-size: 12px; color: var(--ink-muted); }
+  .judge { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .jbtn {
+    min-height: 60px; padding: 10px; border-radius: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 18px; font-weight: 700; cursor: pointer;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+  }
+  .jbtn.no:hover { border-color: var(--ink-muted); }
+  .jbtn.yes { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+  .jbtn.yes:hover { background: var(--accent-strong); }
+  .jbtn:active { filter: brightness(0.92); }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-muted); }
+  .toggle input { width: 18px; height: 18px; }
+
+  textarea.copybox { min-height: 90px; font-family: var(--font-mono); font-size: 12px; }
+  .addL, .addR { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  /* On a wide window the add tab becomes two columns, so the whole tab fits on one screen:
+     inputs on the left, results (and any meaning choices) on the right, scrolling inside their own column. */
+  @media (min-width: 900px) {
+    /* one size for every screen: the same 1040px width, and word cards at the size they have on the add tab
+       (two cards per row on 単語帳 and 間違い; one card beside the inputs on 追加, and one centred card on 復習). */
+    body[data-tab] .wrap { max-width: 1040px; }
+    /* 復習: the choice of range on the left, the card on the right at the same size as every other card */
+    #p-rev { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 508px) minmax(0, 1fr); grid-template-rows: auto auto auto 1fr; column-gap: 24px; row-gap: 12px; align-items: start; }
+    #p-rev[hidden] { display: none; }
+    #p-rev > .scope { grid-column: 1; grid-row: 1 / span 4; }
+    #p-rev > #revBody { grid-column: 2; grid-row: 1 / span 4; }
+    #p-rev > .toggle { grid-column: 3; grid-row: 1; }
+    #p-rev > .voicebox { grid-column: 3; grid-row: 2; }
+    #p-rev > #revNote { grid-column: 3; grid-row: 3; }
+    /* the same top margin and a scrollbar space that is always reserved, so switching tabs never moves the header or the tabs */
+    body { margin: 0; padding-block: 10px; }
+    html { scrollbar-gutter: stable; }
+    header { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 20px; }
+    h1 { font-size: 20px; }
+    #mainList, #missList { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+    #mainList .empty, #missList .empty { grid-column: 1 / -1; }
+    #p-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+    #p-add[hidden] { display: none; }
+    #p-add textarea { min-height: 150px; }
+    .addR { max-height: calc(100vh - 230px); overflow-y: auto; padding-right: 4px; }
+  }
+  /* 追加 and 復習 are sized to the window itself, so the page can't be scrolled at all (only the results list on the right
+     of 追加 scrolls inside its own column). The textarea and the answer box take up whatever height is left. */
+  @media (min-width: 900px) and (min-height: 520px) {
+    #status:empty { display: none; }
+    body[data-tab="add"], body[data-tab="rev"] { overflow: hidden; }
+    body[data-tab] .wrap { gap: 10px; }
+    body[data-tab="add"] .wrap, body[data-tab="rev"] .wrap { height: calc(100vh - 20px); height: calc(100dvh - 20px); }
+    #p-add, #p-rev { flex: 1 1 0; min-height: 0; }
+    #p-add { align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+    .addL { min-height: 0; overflow-y: auto; }
+    #p-add textarea { flex: 1 1 auto; min-height: 80px; resize: none; }
+    .addR { max-height: none; height: 100%; min-height: 0; }
+    #revBody { min-height: 0; overflow-y: auto; }
+    .qans { height: clamp(110px, calc(100vh - 470px), 196px); height: clamp(110px, calc(100dvh - 470px), 196px); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<main class="wrap">
+  <header>
+    <h1>マイ単語帳</h1>
+    <p class="stats" aria-live="polite">
+      <span><b class="num" id="cAll">0</b>語</span>
+      <span><b class="num" id="cRev">0</b>わからない記録あり</span>
+    </p>
+    <p class="hint" id="modeNote"></p>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="表示の切り替え">
+    <button class="tab" role="tab" id="t-add" data-tab="add" aria-selected="true" aria-controls="p-add">追加</button>
+    <button class="tab" role="tab" id="t-list" data-tab="list" aria-selected="false" aria-controls="p-list">単語帳</button>
+    <button class="tab" role="tab" id="t-rev" data-tab="rev" aria-selected="false" aria-controls="p-rev">復習</button>
+    <button class="tab" role="tab" id="t-miss" data-tab="miss" aria-selected="false" aria-controls="p-miss">間違い</button>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <!-- 追加 -->
+  <section class="panel" id="p-add" role="tabpanel" aria-labelledby="t-add">
+    <div class="addL">
+      <label class="cap" for="aMat">登録元（どの教材で出てきた語か）</label>
+      <div class="two"><select id="aMat" aria-label="教材"></select><select id="aUnit" aria-label="単元" hidden></select></div>
+      <label class="cap" for="wordsIn">分からなかった英単語</label>
+      <textarea id="wordsIn" placeholder="postpone&#10;carry out&#10;resilient" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      <p class="hint">1行に1語、またはカンマ区切り。熟語もそのまま入れられます（40語まで）。意味・発音記号・例文・ジャンルは自動で付き、多義語は意味を選べます。登録元は、あとから変えられます。</p>
+      <div class="actrow">
+        <button type="button" class="btn primary" id="goBtn">単語帳にする</button>
+        <button type="button" class="btn" id="stopBtn" hidden>中止</button>
+      </div>
+      <p class="hint" id="genNote" role="status" aria-live="polite"></p>
+      <p class="hint" id="consent" hidden>最初の1回だけ、Claude の利用を許可するかどうかを聞かれます。利用量は、あなたのアカウントから使われます。</p>
+    </div>
+    <div class="addR">
+      <div id="pend"></div>
+      <div id="notices"></div>
+      <h2>今回作った語</h2>
+      <ul class="list" id="lastList"></ul>
+    </div>
+  </section>
+
+  <!-- 単語帳 -->
+  <section class="panel" id="p-list" role="tabpanel" aria-labelledby="t-list" hidden>
+    <div class="filters">
+      <input class="full" type="search" id="fQ" placeholder="単語や意味で探す" aria-label="単語や意味で探す" autocomplete="off">
+      <select id="fStatus" aria-label="状態">
+        <option value="all">すべて</option>
+        <option value="miss">わからない記録あり</option>
+      </select>
+      <select id="fGenre" aria-label="ジャンル"></select>
+      <select id="fSort" aria-label="並び順">
+        <option value="new">新しい順</option>
+        <option value="az">A→Z</option>
+      </select>
+      <select class="half" id="fMat" aria-label="教材"></select>
+      <select class="half" id="fUnit" aria-label="単元" hidden></select>
+    </div>
+    <div class="selbar">
+      <button type="button" class="btn sm" id="selToggle">まとめて選ぶ</button>
+      <div class="seltools" id="selTools" hidden>
+        <button type="button" class="btn sm" id="selAll">すべて選択</button>
+        <span class="selcount" id="selCount" aria-live="polite"></span>
+      </div>
+    </div>
+    <div class="selbar" id="dvRow" hidden>
+      <button type="button" class="btn sm" id="dvBtn">派生語を調べる</button>
+      <span class="hint" id="dvNote">派生語を、まだ調べていない語を、Claude が調べます。</span>
+    </div>
+    <div class="srcbar" id="srcBar" hidden>
+      <span class="selcount">選んだ語の登録元を、まとめて変える</span>
+      <div class="two"><select id="bMat" aria-label="教材"></select><select id="bUnit" aria-label="単元" hidden></select></div>
+      <div class="actrow"><button type="button" class="btn sm" id="bAdd">この登録元を付ける</button><button type="button" class="btn sm" id="bDel">この登録元を外す</button></div>
+      <p class="hint">外すとき、単元を指定しなければ、その教材の登録元をすべて外します。</p>
+    </div>
+    <ul class="list" id="mainList"></ul>
+    <h2>書き出し</h2>
+    <p class="hint">「単語帳の形式」と同じ項目で書き出します（word、pos、meaning_ja、ipa、genre、set、example、example_ja、headword、derived）。set は user になります。登録元は sources に入ります。</p>
+    <div class="actrow">
+      <button type="button" class="btn" id="exJson">JSONで保存</button>
+      <button type="button" class="btn" id="exCsv">CSVで保存</button>
+      <button type="button" class="btn" id="exCopy">JSONをコピー</button>
+    </div>
+    <textarea class="copybox" id="copyBox" readonly hidden aria-label="コピー用のJSON"></textarea>
+  </section>
+
+  <!-- 復習 -->
+  <!-- 間違い -->
+  <section class="panel" id="p-miss" role="tabpanel" aria-labelledby="t-miss" hidden>
+    <p class="hint">復習で「わからない」を押した語です。新しく間違えた順に並びます。確認できた語は、「確認した」を押すと、この一覧から外れます。</p>
+    <div class="selbar">
+      <select id="mMat" aria-label="教材" style="flex:1 1 160px"></select>
+      <button type="button" class="btn sm" id="mAll">表示中をすべて確認した</button>
+    </div>
+    <ul class="list" id="missList"></ul>
+  </section>
+
+  <section class="panel" id="p-rev" role="tabpanel" aria-labelledby="t-rev" hidden>
+    <div class="scope">
+      <label class="cap" for="rMat">出題する教材</label>
+      <select id="rMat"></select>
+      <details class="units" id="rDet" hidden>
+        <summary id="rSum">単元：すべて</summary>
+        <div class="chips" id="rUnits" role="group" aria-label="単元"></div>
+        <p class="hint">単元を選ばないと、その教材のすべての単元から出題します。数字は、その単元に登録した語の数です。</p>
+      </details>
+    </div>
+    <div id="revBody"></div>
+    <label class="toggle"><input type="checkbox" id="autoSpeak"> 次の語が出たら、自動で発音する</label>
+    <div class="voicebox">
+      <label class="cap" for="voiceSel">発音の声</label>
+      <div class="two"><select id="voiceSel"></select><button type="button" class="btn sm" id="voiceTest">試し聞き</button></div>
+    </div>
+    <p class="hint" id="revNote"></p>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var GENRES = [['hr', '人事・雇用'], ['law', '契約・法務・規則'], ['fin', '財務・お金'], ['sales', '販売・広告・顧客'], ['mfg', '製造・物流・在庫'], ['office', '会議・事務・連絡'], ['travel', '旅行・交通・宿泊・飲食'], ['build', '建物・不動産・設備'], ['health', '医療・健康・安全'], ['edu', '教育・研究'], ['env', '環境・自然・エネルギー'], ['state', '状態・性質'], ['action', '動作・変化'], ['gen', '副詞・つなぎ・熟語'], ['other', 'その他']];
+  var GLABEL = {}; GENRES.forEach(function (g) { GLABEL[g[0]] = g[1]; });
+  var POS = ['名', '動', '形', '副', '前', '接', '熟語'];
+  // 登録元: a word carries a list of keys, "material" or "material/unit". 公式問題集 has no units.
+  var MATS = [
+    { id: 'd1000', name: 'でる1000', units: [['ch1', '第1章 品詞問題'], ['ch2', '第2章 動詞問題'], ['ch3', '第3章 前置詞 or 接続詞問題'], ['ch4', '第4章 代名詞問題'], ['ch5', '第5章 前置詞問題'], ['ch6', '第6章 関係詞問題'], ['ch7', '第7章 ペア表現・語法・数・比較問題'], ['mock', '文法模試']] },
+    { id: 'kinfure', name: '金フレ', units: [['l600', '600点レベル（1〜400）'], ['l730', '730点レベル（401〜700）'], ['l860', '860点レベル（701〜900）'], ['l990', '990点レベル（901〜1000）'], ['s1', '補足：パート1重要語100'], ['s2', '補足：部署・職業名'], ['s3', '補足：前置詞・接続詞・接続副詞'], ['s4', '補足：多義語88'], ['s5', '補足：定型表現120']] },
+    { id: 'k12', name: '公式問題集12', units: [] },
+    { id: 'k13', name: '公式問題集13', units: [] }
+  ];
+  var MAT = {};
+  MATS.forEach(function (m) { MAT[m.id] = m; m.u = {}; m.units.forEach(function (u) { m.u[u[0]] = u[1]; }); });
+  function srcKey(m, u) { return m ? (u ? m + '/' + u : m) : ''; }
+  function srcLabel(k) {
+    var p = String(k).split('/'), m = MAT[p[0]];
+    return m ? m.name + (p[1] ? '・' + (m.u[p[1]] || p[1]) : '') : String(k);
+  }
+  function inMat(it, m) { return (it.src || []).some(function (k) { return k === m || k.indexOf(m + '/') === 0; }); }
+  // m '' = everything, '_none' = words with no source; us = unit ids (empty = every unit)
+  function inScope(it, m, us) {
+    if (!m) return true;
+    if (m === '_none') return !(it.src && it.src.length);
+    if (!inMat(it, m)) return false;
+    if (!us || !us.length) return true;
+    return us.some(function (u) { return (it.src || []).indexOf(m + '/' + u) >= 0; });
+  }
+  var BATCH = 6, MAXW = 40, LSKEY = 'mytango-v1';
+  var SPK = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
+  var ls = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+
+  var press = null;   // the judge button currently held down, if any
+  var S = {
+    items: new Map(), mode: 'local', db: null, sample: null, downloads: null, ready: false,
+    tab: 'add', busy: false, ctl: null, last: [], notices: [], editId: null, pendingRender: false,
+    sel: new Set(), selMode: false, rev: { m: '', us: [] }, editSrc: [],
+    cur: null, rounds: {}, pend: [], pendingReview: false, showEx: ls.get('mytango-showex') === '1', autoSpeak: ls.get('mytango-speak') !== '0'
+  };
+
+  // ---------- helpers ----------
+  function slug(w) {
+    var o = '', i, ch;
+    var s = String(w).toLowerCase();
+    for (i = 0; i < s.length; i++) {
+      ch = s.charAt(i);
+      if (/[a-z0-9]/.test(ch)) o += ch;
+      else if (ch === ' ') o += '_';
+      else if (ch === '-') o += '-';
+      else o += '~' + s.charCodeAt(i).toString(16) + '~';
+    }
+    return o.slice(0, 180) || 'x';
+  }
+  function hl(example) {
+    return String(example || '').split('*').map(function (t, i) { return i % 2 ? '<em>' + esc(t) + '</em>' : esc(t); }).join('');
+  }
+  function plain(example) { return String(example || '').replace(/\*/g, ''); }
+  var NO_SAMPLE = 'この画面では、Claude による自動作成が使えません。claude.ai か Claude アプリで、このページを開いてください（ホーム画面のアイコンから開いた場合は、アプリで開き直してください）。';
+  function flash(msg, kind) {
+    // The message appears where the eye already is: under the buttons on the add tab, under the tabs elsewhere.
+    var on = S.tab === 'add' ? 'genNote' : 'status', off = on === 'status' ? 'genNote' : 'status';
+    $(on).textContent = msg || ''; $(on).className = (on === 'genNote' ? 'hint ' : '') + (kind || '');
+    $(off).textContent = ''; $(off).className = off === 'genNote' ? 'hint' : '';
+  }
+  // Speech starts quickly when (1) the voice list is already loaded, (2) the voice runs on the device, not over the network,
+  // and (3) the engine has been woken up once. So the voice is chosen ahead of time, device voices come first,
+  // and the first touch anywhere on the page plays a silent word to warm the engine up.
+  // Which voice reads is the user's choice (the 発音の声 box on the review tab): "auto" prefers the natural-sounding voices
+  // (best pronunciation, a little slower to start), "fast" prefers the plain voices that live on the device, or one voice by name.
+  var VOICE = null, warmed = false, VPREF = ls.get('mytango-voice') || 'auto', voiceWaiters = [];
+  function usVoices() {
+    var all = window.speechSynthesis.getVoices(), us = all.filter(function (v) { return /^en[-_]US/i.test(v.lang); });
+    return us.length ? us : all.filter(function (v) { return /^en/i.test(v.lang); });
+  }
+  function pickVoice() {
+    var us = usVoices(); if (!us.length) return null;
+    if (VPREF.indexOf('name:') === 0) { var named = us.filter(function (v) { return v.name === VPREF.slice(5); })[0]; if (named) return named; }
+    var good = /premium|enhanced|samantha|ava|allison|aria|jenny|google us english/i, local = us.filter(function (v) { return v.localService; });
+    if (VPREF === 'fast') { var pool = local.length ? local : us; return pool.filter(function (v) { return good.test(v.name); })[0] || pool[0]; }
+    return us.filter(function (v) { return /natural|neural/i.test(v.name); })[0] || us.filter(function (v) { return good.test(v.name); })[0] || local[0] || us[0];
+  }
+  function fillVoiceSel() {
+    var sel = document.getElementById('voiceSel'); if (!sel || !('speechSynthesis' in window)) return;
+    var opts = [['auto', 'おまかせ（自然な声を優先）'], ['fast', '速さ優先（端末の声）']].concat(usVoices().map(function (v) { return ['name:' + v.name, v.name.replace(/^Microsoft /, '').replace(/ - English.*$/, '')]; }));
+    sel.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('');
+    sel.value = VPREF; if (sel.value !== VPREF) sel.value = 'auto';
+  }
+  function loadVoices() {
+    try { VOICE = pickVoice(); fillVoiceSel(); } catch (e) {}
+    if (VOICE) voiceWaiters.splice(0).forEach(function (f) { f(); });
+  }
+  if ('speechSynthesis' in window) {
+    loadVoices();
+    if (window.speechSynthesis.addEventListener) window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    else window.speechSynthesis.onvoiceschanged = loadVoices;
+    var warm = function () {
+      if (warmed) return; warmed = true;
+      try { var u = new SpeechSynthesisUtterance('a'); u.volume = 0; u.lang = 'en-US'; if (VOICE) u.voice = VOICE; window.speechSynthesis.speak(u); } catch (e) {}
+    };
+    document.addEventListener('pointerdown', warm, { capture: true, once: true });
+    document.addEventListener('keydown', warm, { capture: true, once: true });
+  }
+  // Browsers sometimes swallow a word: speak() right after cancel() can be dropped, an utterance that nothing refers to
+  // can be garbage-collected while it plays, and the engine can be left paused. So: the newest request always wins,
+  // a short pause follows a cancel, the utterance is kept referenced while it plays, the engine is resumed first,
+  // and if the word has not started after a moment it is asked once more.
+  var utts = [], speakGen = 0;
+  function speak(t) {
+    if (!('speechSynthesis' in window)) return;
+    var s = window.speechSynthesis, my = ++speakGen;
+    var say = function (again) {
+      if (my !== speakGen) return;
+      try {
+        if (!VOICE) loadVoices();
+        var u = new SpeechSynthesisUtterance(t); u.lang = 'en-US'; u.rate = 0.9;
+        if (VOICE) u.voice = VOICE;
+        var done = function () { utts = utts.filter(function (x) { return x !== u; }); };
+        u.onstart = function () { u._started = true; };
+        u.onend = done; u.onerror = done;
+        utts.push(u);
+        if (s.paused) s.resume();
+        s.speak(u);
+        if (!again) setTimeout(function () {
+          if (my === speakGen && !u._started && !s.speaking) { try { s.cancel(); } catch (e) {} setTimeout(function () { say(true); }, 60); }
+        }, 900);
+      } catch (e) {}
+    };
+    var go = function () {
+      try {
+        if (s.speaking || s.pending) { s.cancel(); setTimeout(function () { say(false); }, 60); }   // let the cancel settle before the next word
+        else say(false);
+      } catch (e) {}
+    };
+    // if the voice list has not arrived yet, wait for it (at most 0.8 s) so the first word is not read by some other default voice
+    if (!VOICE) { loadVoices(); }
+    if (!VOICE && !s.getVoices().length) { var fired = false, f = function () { if (fired) return; fired = true; go(); }; voiceWaiters.push(f); setTimeout(f, 800); }
+    else go();
+  }
+  // What is actually spoken for a word: the "読み上げ用の綴り" the user typed for it, otherwise the word with brackets removed
+  // and the placeholders X / Y read as "something" (so "turn X into Y" is not read letter by letter).
+  function ttsText(it) {
+    var sp = String(it.sp || '').trim();
+    if (sp) return sp;
+    return String(it.word).replace(/[()（）]/g, ' ').replace(/\b[XY]\b/g, 'something').replace(/\s+/g, ' ').trim();
+  }
+  function wordText(w) { var it = S.items.get(slug(w)); return it ? ttsText(it) : w; }
+  async function use(name) {
+    try { return (window.claude && window.claude.use) ? await window.claude.use(name) : null; } catch (e) { return null; }
+  }
+  // the only record kept per word is how many times it was marked わからない
+  function status(it) {
+    return (it.m || 0) > 0 ? { k: 'r', t: 'わからない ' + it.m + '回' } : null;
+  }
+  function issues(it) {
+    var a = [];
+    if (String(it.example || '').split('*').length !== 3 && !/\*.+\*.+\*/.test(it.example || '')) a.push('例文に、強調の印（*）がありません。');
+    if (!it.meaning_ja) a.push('意味が空です。');
+    if (!it.ipa) a.push('発音記号が空です。');
+    if (!it.example_ja) a.push('例文の訳が空です。');
+    return a;
+  }
+
+  // ---------- storage ----------
+  var chain = Promise.resolve();
+  // writes go one at a time; a write that never answers is given up after 15 s so it cannot block the ones behind it
+  function withTimeout(p) {
+    return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej({ code: 'timeout' }); }, 15000); })]);
+  }
+  function enqueue(fn) { chain = chain.then(function () { return withTimeout(fn()); }).catch(writeError); return chain; }
+  function writeError(e) {
+    var c = e && e.code;
+    if (c === 'quota_exceeded') flash('保存できる数の上限に達しました。いらない語を削除してください。', 'err');
+    else if (c === 'invalid_argument') flash('この画面では保存できません（編集の権限がないようです）。', 'err');
+    else if (c === 'resource_exhausted') flash('短い間に書き込みすぎました。少し待ってから、もう一度試してください。', 'err');
+    else flash('保存できませんでした（' + (c || '不明') + '）。少し待って、もう一度試してください。', 'err');
+  }
+  function saveLocal() { ls.set(LSKEY, JSON.stringify(Array.from(S.items.values()))); }
+  function loadLocal() {
+    var raw = ls.get(LSKEY), a = [];
+    try { a = JSON.parse(raw || '[]'); } catch (e) { a = []; }
+    S.items = new Map();
+    if (Array.isArray(a)) a.forEach(function (it) { if (it && it.word) S.items.set(slug(it.word), it); });
+  }
+  function put(item) {
+    var id = slug(item.word);
+    S.items.set(id, item);
+    if (S.mode === 'db') return enqueue(function () { return S.db.doc('words/' + id).set(item); });
+    saveLocal(); return Promise.resolve();
+  }
+  // A delete goes straight to the store (not behind the write queue) and is undone on screen if the store refuses it.
+  function del(id) {
+    var old = S.items.get(id);
+    S.items.delete(id);
+    if (S.mode === 'db') {
+      return withTimeout(S.db.doc('words/' + id).delete()).catch(function (e) {
+        if (old) S.items.set(id, old);
+        renderAll(); writeError(e);
+      });
+    }
+    saveLocal(); return Promise.resolve();
+  }
+  async function initStore() {
+    var db = await use('db');
+    if (db) {
+      try {
+        S.db = db; S.mode = 'db';
+        db.collection('words').onSnapshot(function (snap) {
+          var m = new Map();
+          snap.docs.forEach(function (d) { if (d.exists) m.set(d.id, clone(d.data())); });
+          // the store may deliver the same data again (periodic refresh): redrawing then would undo a half-done tap, so skip it
+          var sig = JSON.stringify(Array.from(m.entries()));
+          if (S.ready && sig === S.sig) return;
+          S.sig = sig; S.items = m; S.ready = true; renderAll();
+        }, function () {
+          S.mode = 'local'; loadLocal(); S.ready = true;
+          flash('保存先に接続できなくなりました。この端末の中にだけ保存します。', 'err'); renderAll();
+        });
+        return;
+      } catch (e) { S.mode = 'local'; }
+    }
+    loadLocal(); S.ready = true; renderAll();
+  }
+
+  // ---------- generation ----------
+  var DERIVED_RULE = '- derived は、その語から作られる主な派生語の配列。名詞形、動詞形、形容詞形、副詞形、人を表す名詞など、TOEICで使われるものだけを、多くても5つ。各要素は {"word":"綴り","pos":"名・動・形・副のどれか","meaning_ja":"短い日本語の意味"}。入力した語自身は入れない。熟語や、派生語がない語は空の配列 [] にする。';
+  var SENSE_RULE = '- senses は、多義語のとき、意味が大きく異なり、TOEICでも問われる語義を、2〜4個。各要素は {"meaning_ja":"短い日本語の意味","pos":"名・動・形・副・前・接のどれか","example":"3〜5語のフレーズ。対象の語を * で1か所だけ囲む","example_ja":"例文の訳"}。最もよく使われる意味を1つ目にする。意味が1つの語、近い意味だけの語、熟語は、空の配列 [] にする。';
+  // sn = the senses kept on a word: [{m, pos, ex, ja}]. Two or more means the word is polysemous and the user picks which to register.
+  function cleanSenses(list, word, base) {
+    if (!Array.isArray(list)) return [];
+    var out = [], seen = {};
+    list.forEach(function (s) {
+      if (!s || typeof s !== 'object') return;
+      var m = String(s.meaning_ja || '').trim(), ja = String(s.example_ja || '').trim();
+      if (!m || seen[m]) return;
+      seen[m] = 1;
+      var pos = POS.indexOf(s.pos) >= 0 && s.pos !== '熟語' ? s.pos : (base && base.pos) || '';
+      out.push({ m: m, pos: pos, ex: fixExample(s.example, word), ja: ja });
+    });
+    return out.slice(0, 4);
+  }
+  function sensePrompt(it) {
+    return [
+      'あなたはTOEIC対策の英単語帳を作るアシスタントです。次の英単語に、意味が大きく異なる語義が複数あるかを調べ、JSON配列（要素は1つ）だけを返してください。',
+      '',
+      '要素の形: {"word":"入力の綴りそのまま（品詞は含めない）","senses":[{"meaning_ja":"...","pos":"名","example":"...","example_ja":"..."}]}',
+      '',
+      '規則:',
+      SENSE_RULE,
+      '- example は辞書や教材の例文を写さず、自分で作る。',
+      '',
+      '入力:',
+      it.word + '（' + it.pos + '）'
+    ].join('\n');
+  }
+  // dv = the derived forms kept on a word: [{w, pos, ja}]; undefined means "not looked up yet", [] means "none"
+  function cleanDerived(list, word) {
+    if (!Array.isArray(list)) return [];
+    var seen = {}, out = [], base = String(word).trim().toLowerCase();
+    list.forEach(function (d) {
+      if (!d || typeof d !== 'object') return;
+      var w = String(d.word || '').trim(), lw = w.toLowerCase();
+      if (!w || /\s/.test(w) || lw === base || seen[lw]) return;
+      seen[lw] = 1;
+      out.push({ w: w, pos: POS.indexOf(d.pos) >= 0 && d.pos !== '熟語' ? d.pos : '', ja: String(d.meaning_ja || '').trim() });
+    });
+    return out.slice(0, 6);
+  }
+  function missingDv() {
+    var a = [];
+    S.items.forEach(function (it, id) { if (!Array.isArray(it.dv)) a.push(id); });
+    return a;
+  }
+  function dvPrompt(items) {
+    return [
+      'あなたはTOEIC対策の英単語帳を作るアシスタントです。次の英単語それぞれについて、その語から作られる主な派生語を調べ、JSON配列だけを返してください。入力と同じ順番、同じ件数にします。',
+      '',
+      '各要素の形: {"word":"入力の綴りそのまま（品詞は含めない）","derived":[{"word":"...","pos":"名","meaning_ja":"..."}]}',
+      '',
+      '規則:',
+      DERIVED_RULE,
+      '',
+      '入力（1行に1語。「語（品詞）」の形）:',
+      items.map(function (it) { return it.word + '（' + it.pos + '）'; }).join('\n')
+    ].join('\n');
+  }
+  // Look up derived forms for words saved before this field existed (or whose lookup was left unfinished).
+  async function fillDerived() {
+    if (S.dvBusy) { if (S.dvCtl) S.dvCtl.abort(); return; }
+    if (S.busy) { flash('いま別の作成中です。終わってから、もう一度押してください。', 'err'); return; }
+    if (!S.sample) { flash('準備しています…（最大10秒）'); S.sample = await S.sampleP; if (!S.sample) { flash(NO_SAMPLE, 'err'); return; } }
+    var ids = missingDv(), total = ids.length, done = 0;
+    if (!total) return;
+    S.dvBusy = true; S.dvCtl = new AbortController();
+    try {
+      while (ids.length) {
+        var batch = ids.slice(0, 12);
+        $('dvBtn').textContent = '調べています… ' + done + ' / ' + total + '（押すと中止）';
+        $('dvNote').textContent = '1回に数十秒かかることがあります。';
+        var items = batch.map(function (id) { return S.items.get(id); }).filter(Boolean);
+        var res = await S.sample.json(dvPrompt(items), { signal: S.dvCtl.signal });
+        if (!Array.isArray(res)) throw { code: 'invalid_json', message: 'not an array' };
+        items.forEach(function (it, i) {
+          var r = findResult(res, it.word, i), cur = S.items.get(slug(it.word));
+          if (!r || typeof r !== 'object' || !cur) return;
+          var c = clone(cur); c.dv = cleanDerived(r.derived, cur.word); put(c); done++;
+        });
+        ids = ids.slice(batch.length);
+        renderAll();
+      }
+      flash(done + ' 語の派生語を調べました。', 'ok');
+    } catch (e) {
+      flash((e && e.code === 'cancelled' ? '中止しました。' : errCopy(e).replace('残りの語は、入力欄に戻してあります。', '')) + '（' + done + ' 語は調べ済みです）', e && e.code === 'cancelled' ? '' : 'err');
+    } finally {
+      S.dvBusy = false; S.dvCtl = null; renderAll();
+    }
+  }
+  function dvText(it) {
+    return (it.dv || []).map(function (d) { return (d.pos ? d.pos + ' ' : '') + d.w + (d.ja ? '（' + d.ja + '）' : ''); }).join('　');
+  }
+  function buildPrompt(words) {
+    var gl = GENRES.map(function (g) { return g[0] + '=' + g[1]; }).join('、');
+    return [
+      'あなたはTOEIC対策の英単語帳を作るアシスタントです。次の英単語・熟語について、1語につき1つのJSONオブジェクトを作り、JSON配列だけを返してください。入力と同じ順番、同じ件数にします。',
+      '',
+      '各オブジェクトの形（headword は文字列か null、derived は配列、それ以外はすべて文字列）:',
+      '{"word":"入力の綴りそのまま","status":"ok","pos":"名","meaning_ja":"...","ipa":"...","genre":"...","example":"...","example_ja":"...","headword":null,"derived":[{"word":"...","pos":"名","meaning_ja":"..."}],"senses":[]}',
+      '',
+      '規則:',
+      '- pos は 名・動・形・副・前・接・熟語 のどれか1つ。空白を含む語は熟語にする。',
+      '- meaning_ja は日本語の意味。TOEICで多い意味を先に、複数ある場合は「、」で区切る。',
+      '- ipa は米音の発音記号。前後のスラッシュや角括弧は付けない。強勢は ˈ（第1）と ˌ（第2）で示す。熟語は語ごとの記号を空白でつなぐ。',
+      '- genre は次のidから最も近いものを1つ選ぶ: ' + gl + '。迷ったら、形容詞は state、動詞は action、副詞・前置詞・接続詞・熟語は gen、名詞は other。',
+      '- example は3〜5語ほどの短いフレーズで、仕事・旅行・日常の場面にする。対象の語（活用や複数形になった形でもよい）を * で1か所だけ囲む。例: "*accept* an offer"、"a *number of* customers"。辞書や教材の例文を写さず、自分で作る。',
+      '- example_ja は例文の自然な日本語訳。',
+      '- headword は、入力が活用形や派生語（例: postponed, acceptable）で、より基本の語（postpone, accept）がある場合にその語。そうでなければ null。',
+      DERIVED_RULE,
+      SENSE_RULE + '1つ目は、上の meaning_ja・example と同じ内容にする。',
+      '- 英単語や熟語として確認できない語（綴りの間違いなど）は、{"word":"入力","status":"unknown","note":"日本語で短い理由","suggest":"考えられる正しい綴り。なければ null"} だけを返す。',
+      '',
+      '入力（1行に1語）:',
+      words.join('\n')
+    ].join('\n');
+  }
+  function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function fixExample(ex, word) {
+    ex = String(ex || '').trim();
+    if (ex.split('*').length === 3 && /^[^*]*\*[^*]+\*[^*]*$/.test(ex)) return ex;
+    var raw = ex.replace(/\*/g, ''), base = word.trim(), cut, re, m;
+    for (cut = 0; cut <= 2; cut++) {
+      var stem = base.slice(0, base.length - cut);
+      if (stem.length < 3) break;
+      re = new RegExp('(^|[^A-Za-z])(' + escRe(stem) + '[A-Za-z]*)', 'i');
+      m = re.exec(raw);
+      if (m) {
+        var at = m.index + m[1].length;
+        return raw.slice(0, at) + '*' + m[2] + '*' + raw.slice(at + m[2].length);
+      }
+    }
+    return raw;
+  }
+  function defaultGenre(pos) { return { '形': 'state', '動': 'action', '副': 'gen', '前': 'gen', '接': 'gen', '熟語': 'gen' }[pos] || 'other'; }
+  function normalize(r, typed, src) {
+    var word = typed.trim();
+    var pos = /\s/.test(word) ? '熟語' : (POS.indexOf(r.pos) >= 0 ? r.pos : '名');
+    var hw = typeof r.headword === 'string' && r.headword.trim() && r.headword.trim().toLowerCase() !== word.toLowerCase() ? r.headword.trim() : null;
+    return {
+      word: word, pos: pos,
+      meaning_ja: String(r.meaning_ja || '').trim(),
+      ipa: String(r.ipa || '').replace(/[\/\[\]]/g, '').trim(),
+      genre: GLABEL[r.genre] ? r.genre : defaultGenre(pos),
+      set: 'user',
+      example: fixExample(r.example, word),
+      example_ja: String(r.example_ja || '').trim(),
+      headword: hw, derived: [], dv: cleanDerived(r.derived, word), src: src ? [src] : [],
+      added: Date.now(), s: 0, d: 0, m: 0
+    };
+  }
+  function findResult(res, w, i) {
+    var lw = w.toLowerCase(), k;
+    for (k = 0; k < res.length; k++) {
+      if (res[k] && typeof res[k].word === 'string' && res[k].word.trim().toLowerCase() === lw) return res[k];
+    }
+    return res[i];
+  }
+  function errCopy(e) {
+    var c = e && e.code;
+    if (c === 'cancelled') return '中止しました。';
+    if (c === 'not_granted') return 'Claude の利用が許可されませんでした。ページを開き直して、許可してください。';
+    if (c === 'rate_limited') return '短い間に呼び出しすぎました。しばらくしてから、もう一度押してください。';
+    if (c === 'session_expired') return 'ログインの期限が切れました。ページを開き直してください。';
+    if (c === 'sampling_disabled' || c === 'not_declared' || c === 'capability_disabled' || c === 'capability_removed') return 'このアカウントでは、Claude による自動作成が使えません。';
+    return 'うまく作れませんでした。もう一度押してください。残りの語は、入力欄に戻してあります。';
+  }
+  // key = the source chosen for this batch ('' = none). A word that is already registered is an error,
+  // unless it is being registered from a source it does not have yet: then that source is simply added.
+  function parseWords(text, key) {
+    var parts = text.split(/[\n\r,、，;；\t]+/).map(function (s) { return s.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    var seen = {}, ok = [], bad = [], dup = [], add = [];
+    parts.forEach(function (p) {
+      var lw = p.toLowerCase();
+      if (/[^\x20-\x7E’é]/.test(p) || p.length > 60) { bad.push(p); return; }
+      if (seen[lw]) { if (dup.indexOf(p) < 0) dup.push(p + '（入力欄で重複）'); return; }
+      seen[lw] = 1;
+      var ex = S.items.get(slug(p));
+      if (ex) {
+        if (key && (ex.src || []).indexOf(key) < 0) add.push(p);
+        else dup.push(p + (key ? '（この登録元に登録済み）' : '（登録済み）'));
+        return;
+      }
+      ok.push(p);
+    });
+    return { ok: ok, bad: bad, dup: dup, add: add };
+  }
+  function addSources(words, key) {
+    var ids = [];
+    words.forEach(function (w) {
+      var id = slug(w), it = S.items.get(id);
+      if (!it) return;
+      var c = clone(it); c.src = (c.src || []).concat([key]); put(c); ids.push(id);
+    });
+    S.last = ids.concat(S.last.filter(function (x) { return ids.indexOf(x) < 0; })).slice(0, 40);
+    return ids.map(function (id) { return S.items.get(id).word; });
+  }
+  var busyTimer = 0;
+  function setBusy(b) {
+    S.busy = b; $('goBtn').disabled = b; $('stopBtn').hidden = !b; $('wordsIn').readOnly = b;
+    clearInterval(busyTimer);
+    if (b) {
+      var t0 = Date.now(), label = function () { $('goBtn').textContent = '作っています… ' + Math.floor((Date.now() - t0) / 1000) + '秒'; };
+      label(); busyTimer = setInterval(label, 1000);
+    } else $('goBtn').textContent = '単語帳にする';
+    document.querySelectorAll('[data-act="regen"]').forEach(function (x) { x.disabled = b; });
+  }
+  async function addWords(words, opt) {
+    opt = opt || {};
+    if (S.busy) return words;
+    if (S.dvBusy) { flash('派生語を調べている途中です。終わってから、もう一度押してください。', 'err'); return words; }
+    if (!S.sample) { flash(NO_SAMPLE, 'err'); return words; }
+    setBusy(true); S.ctl = new AbortController();
+    var remaining = words.slice(), total = words.length, made = [], problems = [], pended = 0;
+    try {
+      while (remaining.length) {
+        var batch = remaining.slice(0, BATCH);
+        flash('作っています… ' + (total - remaining.length) + ' / ' + total + ' 語が完了（1回に数十秒かかることがあります）');
+        var res = await S.sample.json(buildPrompt(batch), { signal: S.ctl.signal, cache: opt.fresh ? false : true });
+        if (!Array.isArray(res)) throw { code: 'invalid_json', message: 'not an array' };
+        batch.forEach(function (w, i) {
+          var r = findResult(res, w, i);
+          if (!r || typeof r !== 'object') { problems.push({ word: w, note: '結果を受け取れませんでした。' }); return; }
+          if (r.status === 'unknown') { problems.push({ word: w, note: String(r.note || ''), suggest: r.suggest ? String(r.suggest) : null, src: opt.src || '' }); return; }
+          var it = normalize(r, w, opt.src), old = S.items.get(slug(w));
+          if (old && opt.keepProgress) { it.m = old.m; it.added = old.added; it.src = old.src || []; }
+          var sn = cleanSenses(r.senses, w, it);
+          if (sn.length >= 2) {   // polysemous: wait for the user to choose which meaning(s) to keep
+            S.pend = S.pend.filter(function (p) { return p.word.toLowerCase() !== w.toLowerCase(); });
+            S.pend.push({ kind: 'new', word: w, base: it, senses: sn, sel: sn.map(function (_, i) { return i === 0; }) });
+            pended++; return;
+          }
+          it.sn = sn; put(it); made.push(slug(w));
+        });
+        remaining = remaining.slice(batch.length);
+        renderAll();
+      }
+      savePend();
+      flash((made.length ? made.length + ' 語を単語帳に入れました。' : (pended ? '' : '追加できる語がありませんでした。')) + (pended ? pended + ' 語は多義語です。下で意味を選んでください。' : ''), made.length || pended ? 'ok' : '');
+    } catch (e) {
+      flash(errCopy(e), e && e.code === 'cancelled' ? '' : 'err');
+    } finally {
+      S.ctl = null; setBusy(false);
+      if (made.length) S.last = made.concat(S.last.filter(function (x) { return made.indexOf(x) < 0; })).slice(0, 40);
+      S.notices = S.notices.filter(function (n) { return n.kind !== 'problem'; });
+      problems.forEach(function (p) { S.notices.push({ kind: 'problem', word: p.word, note: p.note, suggest: p.suggest, src: p.src }); });
+      renderAll();
+    }
+    return remaining;
+  }
+
+  // ---------- render ----------
+  function itemHtml(id, it, opts) {
+    opts = opts || {};
+    var st = status(it), iss = issues(it);
+    var rel = (it.headword ? '<p class="hw">見出し語：' + esc(it.headword) + '</p>' : '') +
+      ((it.dv || []).length ? '<p class="dv">派生語：' + esc(dvText(it)) + '</p>' : '');
+    var acts = opts.extra || '';
+    var pick = !opts.compact && S.selMode;
+    if (!opts.compact && !S.selMode) {
+      acts ='<div class="acts">' +
+        '<button type="button" class="btn sm" data-act="edit">編集</button>' +
+        '<button type="button" class="btn sm" data-act="senses">意味を選ぶ</button>' +
+        '<button type="button" class="btn sm" data-act="regen"' + (S.busy ? ' disabled' : '') + '>作り直す</button>' +
+        '<button type="button" class="btn sm danger" data-act="del"' + (S.armDel === id ? ' data-armed="1">本当に削除' : '>削除') + '</button></div>';
+    }
+    var on = pick && S.sel.has(id);
+    return '<li class="item' + (pick ? ' selectable' : '') + (on ? ' sel' : '') + '" data-id="' + esc(id) + '">' +
+      '<div class="ih">' + (pick ? '<input type="checkbox" class="selcb" aria-label="' + esc(it.word) + ' を選ぶ"' + (on ? ' checked' : '') + '>' : '') + '<span class="w">' + esc(it.word) + '</span>' +
+      (it.ipa ? '<span class="ipa">/' + esc(it.ipa) + '/</span>' : '') +
+      ('speechSynthesis' in window ? '<button type="button" class="spk" data-say="' + esc(it.word) + '" aria-label="' + esc(it.word) + ' の発音を聞く">' + SPK + '</button>' : '') +
+      '</div>' +
+      '<div class="meta"><span class="chip">' + esc(it.pos) + '</span><span class="chip">' + esc(GLABEL[it.genre] || 'その他') + '</span>' + (st ? '<span class="chip st-' + st.k + '">' + st.t + '</span>' : '') +
+      (it.src || []).map(function (k) { return '<span class="chip src">' + esc(srcLabel(k)) + '</span>'; }).join('') + '</div>' +
+      '<p class="mn">' + esc(it.meaning_ja) + '</p>' +
+      '<p class="ex">' + hl(it.example) + '</p><p class="exja">' + esc(it.example_ja) + '</p>' + rel +
+      iss.map(function (m) { return '<p class="issue">' + esc(m) + '</p>'; }).join('') + acts + '</li>';
+  }
+  // 登録元 editor inside a word's edit form; S.editSrc is the working copy until 保存.
+  function srcEditInner() {
+    var chips = S.editSrc.length ? S.editSrc.map(function (k) {
+      return '<button type="button" class="chip tog on" data-srm="' + esc(k) + '" aria-label="' + esc(srcLabel(k)) + ' を外す">' + esc(srcLabel(k)) + ' ✕</button>';
+    }).join('') : '<span class="hint">登録元は付いていません。</span>';
+    return '<span class="cap">登録元（押すと外れます）</span><div class="chips">' + chips + '</div>' +
+      '<div class="two"><select data-sm aria-label="教材">' + matOptions('教材を選ぶ') + '</select><select data-su aria-label="単元" hidden></select></div>' +
+      '<button type="button" class="btn sm" data-sadd>この登録元を付ける</button>';
+  }
+  function editHtml(id, it) {
+    var popt = POS.map(function (p) { return '<option' + (p === it.pos ? ' selected' : '') + '>' + p + '</option>'; }).join('');
+    var gopt = GENRES.map(function (g) { return '<option value="' + g[0] + '"' + (g[0] === it.genre ? ' selected' : '') + '>' + esc(g[1]) + '</option>'; }).join('');
+    return '<li class="item" data-id="' + esc(id) + '"><div class="ih"><span class="w">' + esc(it.word) + '</span></div>' +
+      '<div class="edit">' +
+      '<label>品詞<select data-f="pos">' + popt + '</select></label>' +
+      '<label>ジャンル<select data-f="genre">' + gopt + '</select></label>' +
+      '<label class="full">意味<input type="text" data-f="meaning_ja" value="' + esc(it.meaning_ja) + '"></label>' +
+      '<label class="full">発音記号（スラッシュなし）<input type="text" data-f="ipa" value="' + esc(it.ipa) + '"></label>' +
+      '<label class="full">例文（対象の語を * で囲む）<input type="text" data-f="example" value="' + esc(it.example) + '"></label>' +
+      '<label class="full">例文の訳<input type="text" data-f="example_ja" value="' + esc(it.example_ja) + '"></label>' +
+      '<label class="full">見出し語（なければ空）<input type="text" data-f="headword" value="' + esc(it.headword || '') + '"></label>' +
+      '<label class="full">読み上げ用の綴り（発音がおかしい語だけ。例：to record。空なら語のまま）<input type="text" data-f="sp" value="' + esc(it.sp || '') + '"></label>' +
+      '<div class="full srcedit" id="srcEdit">' + srcEditInner() + '</div>' +
+      '</div><div class="acts"><button type="button" class="btn sm primary" data-act="save">保存</button><button type="button" class="btn sm" data-act="cancel">キャンセル</button></div></li>';
+  }
+  function counts() {
+    var all = 0, miss = 0;
+    S.items.forEach(function (it) { all++; if ((it.m || 0) > 0) miss++; });
+    $('cAll').textContent = all; $('cRev').textContent = miss;
+    $('t-miss').textContent = miss ? '間違い ' + miss : '間違い';
+    if (!S.dvBusy) {
+      var nd = missingDv().length;
+      $('dvBtn').textContent = nd ? '派生語を調べる（' + nd + '語）' : '派生語：すべて調べ済み';
+      $('dvBtn').disabled = !nd; $('dvRow').hidden = !nd;   // the row only appears while some words still lack derived forms
+      $('dvNote').textContent = nd ? '派生語を、まだ調べていない語を、Claude が調べます。答えに、名詞形・形容詞形などが出ます。' : '';
+    }
+  }
+  function renderNotices() {
+    $('notices').innerHTML = S.notices.map(function (n, i) {
+      if (n.kind === 'problem') {
+        return '<div class="notice" data-n="' + i + '"><p><b>' + esc(n.word) + '</b> は、英単語として確認できませんでした。' + esc(n.note) + '</p>' +
+          '<div class="row">' + (n.suggest ? '<span>もしかして：<b>' + esc(n.suggest) + '</b></span><span><button type="button" class="btn sm" data-nact="suggest" data-i="' + i + '"' + (S.busy ? ' disabled' : '') + '>この綴りで作る</button> <button type="button" class="btn sm" data-nact="close" data-i="' + i + '">閉じる</button></span>' : '<span></span><span><button type="button" class="btn sm" data-nact="close" data-i="' + i + '">閉じる</button></span>') + '</div></div>';
+      }
+      return '<div class="notice' + (n.kind === 'error' ? ' err' : '') + '" data-n="' + i + '"><p>' + esc(n.text) + '</p><div class="row"><span></span><button type="button" class="btn sm" data-nact="close" data-i="' + i + '">閉じる</button></div></div>';
+    }).join('');
+  }
+  // ---------- 多義語: choose which meaning(s) to register ----------
+  function savePend() { ls.set('mytango-pend', JSON.stringify(S.pend)); }
+  function renderPend() {
+    var box = $('pend');
+    if (!S.pend.length) { box.innerHTML = ''; return; }
+    box.innerHTML = '<h2>意味を選んでください（' + S.pend.length + '語）</h2>' + S.pend.map(function (p, i) {
+      var base = p.base || {}, again = p.kind === 'replace';
+      return '<div class="pendcard" data-p="' + i + '"><div class="ih"><span class="w">' + esc(p.word) + '</span>' +
+        (base.ipa ? '<span class="ipa">/' + esc(base.ipa) + '/</span>' : '') + '</div>' +
+        '<p class="hint">' + (again ? '登録済みの語の意味を、選び直します。' : '意味が複数あります。') + '登録する意味に、チェックを入れてください（複数選べます）。</p>' +
+        p.senses.map(function (s, j) {
+          return '<label class="sense"><input type="checkbox" data-s="' + j + '"' + (p.sel[j] ? ' checked' : '') + '><span><span class="chip">' + esc(s.pos || base.pos || '') + '</span> <b>' + esc(s.m) + '</b><br><span class="ex">' + hl(s.ex) + '</span><br><span class="exja">' + esc(s.ja) + '</span></span></label>';
+        }).join('') +
+        '<div class="acts"><button type="button" class="btn sm primary" data-pact="ok">' + (again ? 'この意味に変える' : '選んだ意味で登録') + '</button><button type="button" class="btn sm" data-pact="skip">' + (again ? 'やめる' : '登録しない') + '</button></div></div>';
+    }).join('') + (S.pend.length > 1 ? '<div class="actrow"><button type="button" class="btn sm" id="pendAll">チェックのまま、すべて登録</button></div>' : '');
+  }
+  // Applies the ticked senses of one pending word. Returns false when nothing is ticked.
+  function applyPend(p) {
+    var chosen = p.senses.filter(function (_, j) { return p.sel[j]; });
+    if (!chosen.length) return false;
+    var id = slug(p.word), cur = S.items.get(id);
+    var it = clone(p.kind === 'replace' && cur ? cur : p.base);
+    if (p.kind === 'new' && cur) { it.m = cur.m || 0; if (cur.mt) it.mt = cur.mt; it.added = cur.added || it.added; it.src = cur.src || it.src; }
+    it.meaning_ja = chosen.map(function (s) { return s.m; }).join('、');
+    if (!/\s/.test(it.word) && chosen[0].pos) it.pos = chosen[0].pos;
+    it.example = chosen[0].ex; it.example_ja = chosen[0].ja;
+    it.sn = p.senses;
+    put(it);
+    if (p.kind === 'new' && !cur) S.last = [id].concat(S.last.filter(function (x) { return x !== id; })).slice(0, 40);
+    return true;
+  }
+  async function chooseSenses(id) {
+    var it = S.items.get(id); if (!it) return;
+    if (S.pend.some(function (p) { return p.kind === 'replace' && p.word === it.word; })) { setTab('add'); return; }
+    var sn = it.sn;
+    if (!Array.isArray(sn) || sn.length < 2) {   // not looked up yet: ask Claude once, then keep the answer on the word
+      if (S.busy || S.dvBusy || S.sbusy) { flash('いま別の作成中です。終わってから、もう一度押してください。', 'err'); return; }
+      if (!S.sample) { flash('準備しています…（最大10秒）'); S.sample = await S.sampleP; if (!S.sample) { flash(NO_SAMPLE, 'err'); return; } }
+      S.sbusy = true; flash('「' + it.word + '」の意味を調べています…（数十秒かかることがあります）');
+      try {
+        var res = await S.sample.json(sensePrompt(it));
+        var r = Array.isArray(res) ? findResult(res, it.word, 0) : null;
+        sn = cleanSenses(r && r.senses, it.word, it);
+      } catch (e) { S.sbusy = false; flash(errCopy(e).replace('残りの語は、入力欄に戻してあります。', ''), e && e.code === 'cancelled' ? '' : 'err'); return; }
+      S.sbusy = false;
+      if (sn.length < 2) {
+        var c = clone(S.items.get(id) || it); c.sn = sn; put(c); renderAll();
+        flash('「' + it.word + '」は、意味が1つ（または近い意味だけ）でした。', 'ok'); return;
+      }
+    }
+    var sel = sn.map(function (s) { return it.meaning_ja.indexOf(s.m) >= 0; });
+    if (!sel.some(Boolean)) sel[0] = true;
+    S.pend.push({ kind: 'replace', word: it.word, base: clone(it), senses: sn, sel: sel });
+    savePend(); setTab('add'); renderAll(); flash('「' + it.word + '」の意味を選んでください。');
+  }
+  function renderLast() {
+    var rows = S.last.filter(function (id) { return S.items.has(id); });
+    $('lastList').innerHTML = rows.length ? rows.map(function (id) { return itemHtml(id, S.items.get(id), { compact: true }); }).join('') :
+      '<li class="empty">まだありません。上の欄に、分からなかった単語を入れて、「単語帳にする」を押してください。作った語は、ここと「単語帳」に並びます。</li>';
+  }
+  function visibleItems() {
+    var q = $('fQ').value.trim().toLowerCase(), st = $('fStatus').value, g = $('fGenre').value, so = $('fSort').value, a = [];
+    var fm = $('fMat').value, fu = $('fUnit').hidden ? '' : $('fUnit').value;
+    S.items.forEach(function (it, id) {
+      if (st === 'miss' && !((it.m || 0) > 0)) return;
+      if (g && it.genre !== g) return;
+      if (!inScope(it, fm, fu ? [fu] : [])) return;
+      if (q && it.word.toLowerCase().indexOf(q) < 0 && String(it.meaning_ja).indexOf(q) < 0) return;
+      a.push([id, it]);
+    });
+    a.sort(function (x, y) { return so === 'az' ? x[1].word.toLowerCase().localeCompare(y[1].word.toLowerCase()) : (y[1].added || 0) - (x[1].added || 0); });
+    return a;
+  }
+  function renderList() {
+    if (S.editId) { S.pendingRender = true; return; }
+    S.pendingRender = false;
+    var a = visibleItems();
+    var seen = new Set(a.map(function (p) { return p[0]; }));
+    S.sel.forEach(function (id) { if (!seen.has(id)) S.sel.delete(id); });   // a selection only ever holds words on screen
+    $('mainList').innerHTML = a.length ? a.map(function (p) { return itemHtml(p[0], p[1]); }).join('') :
+      (S.items.size ? '<li class="empty">条件に合う語がありません。</li>' :
+        '<li class="empty"><b>単語帳は、まだ空です。</b><br>「追加」の画面で、分からなかった単語を入れると、ここに並びます。</li>');
+    renderSel();
+  }
+  function renderSel() {
+    $('selToggle').textContent = S.selMode ? '選択をやめる' : 'まとめて選ぶ';
+    $('selTools').hidden = !S.selMode; $('srcBar').hidden = !S.selMode;
+    if (!S.selMode) return;
+    $('bAdd').disabled = $('bDel').disabled = !S.sel.size || !$('bMat').value;
+    var vis = visibleItems(), n = 0;
+    vis.forEach(function (p) { if (S.sel.has(p[0])) n++; });
+    var allOn = vis.length > 0 && n === vis.length;
+    $('selAll').textContent = allOn ? 'すべて解除' : 'すべて選択（' + vis.length + '語）';
+    $('selAll').disabled = !vis.length;
+    $('selCount').textContent = S.sel.size + ' 語を選択中';
+  }
+  // Review works in rounds: every word in the chosen scope is shown once, in random order, before any word comes back.
+  // A round is kept per scope (material + units) on this device, so it survives closing the page.
+  function scopeIds() {
+    var a = [];
+    S.items.forEach(function (it, id) { if (inScope(it, S.rev.m, S.rev.us)) a.push(id); });
+    return a;
+  }
+  function scopeKey() { return (S.rev.m || 'all') + '|' + S.rev.us.slice().sort().join(','); }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function newRound(ids, kind) { return { kind: kind, order: shuffle(ids.slice()), pos: 0, ok: 0, wrong: [] }; }
+  function saveRounds() { ls.set('mytango-rounds', JSON.stringify(S.rounds)); }
+  // The round for the current scope, brought in line with the word list (deleted words dropped, new words queued at the end).
+  function curRound() {
+    var ids = scopeIds();
+    if (!S.ready || !ids.length) return null;
+    var key = scopeKey(), R = S.rounds[key];
+    if (!R) R = S.rounds[key] = newRound(ids, 'all');
+    var inSet = new Set(ids), kept = [], np = 0;
+    R.order.forEach(function (id, i) {
+      if (S.items.has(id) && (R.kind === 'wrong' || inSet.has(id))) { kept.push(id); if (i < R.pos) np++; }
+    });
+    R.order = kept; R.pos = np;
+    if (R.kind === 'all') {
+      var have = new Set(kept);
+      ids.forEach(function (id) { if (!have.has(id)) R.order.push(id); });
+    }
+    R.wrong = R.wrong.filter(function (id) { return S.items.has(id); });
+    return R;
+  }
+  function scopeName() {
+    var m = S.rev.m, mat = MAT[m];
+    if (!m) return 'すべての教材';
+    if (m === '_none') return '登録元なし';
+    return mat.name + (S.rev.us.length ? '・' + S.rev.us.map(function (u) { return mat.u[u]; }).join('、') : '');
+  }
+  function saveRev() { ls.set('mytango-rev', JSON.stringify(S.rev)); }
+  // Material picker + unit chips for the review tab. No chip selected = every unit.
+  function matOptions(first, extra) {
+    return '<option value="">' + first + '</option>' + (extra || '') + MATS.map(function (m) { return '<option value="' + m.id + '">' + esc(m.name) + '</option>'; }).join('');
+  }
+  function fillUnits(sel, m, allLabel) {
+    var mat = MAT[m];
+    if (!mat || !mat.units.length) { sel.hidden = true; sel.innerHTML = ''; return; }
+    sel.innerHTML = '<option value="">' + allLabel + '</option>' + mat.units.map(function (u) { return '<option value="' + u[0] + '">' + esc(u[1]) + '</option>'; }).join('');
+    sel.hidden = false;
+  }
+  function renderRevScope() {
+    var m = S.rev.m, mat = MAT[m], left = {};
+    $('rMat').value = m;
+    if (mat) {
+      S.items.forEach(function (it) {
+        (it.src || []).forEach(function (k) { left[k] = (left[k] || 0) + 1; });
+      });
+      $('rUnits').innerHTML = mat.units.map(function (u) {
+        var on = S.rev.us.indexOf(u[0]) >= 0;
+        return '<button type="button" class="chip tog' + (on ? ' on' : '') + '" data-u="' + u[0] + '" aria-pressed="' + on + '">' + esc(u[1]) + ' <span class="n">' + (left[m + '/' + u[0]] || 0) + '</span></button>';
+      }).join('');
+    } else $('rUnits').innerHTML = '';
+    $('rDet').hidden = !(mat && mat.units.length);
+    $('rSum').textContent = S.rev.us.length ? '単元：' + S.rev.us.map(function (u) { return mat.u[u]; }).join('、') : '単元：すべて（押すと選べます）';
+  }
+  function renderReview() {
+    var body = $('revBody'), R = curRound();
+    if (!S.items.size) {
+      body.innerHTML = '<div class="empty"><b>復習する語がありません。</b><br>「追加」の画面で、分からなかった単語を入れてください。</div>'; $('revNote').textContent = ''; return;
+    }
+    if (!R) {
+      body.innerHTML = '<div class="empty"><b>この範囲には、まだ単語がありません。</b><br>「追加」の画面で登録元を選んで追加するか、「単語帳」の画面で、既存の語に登録元を付けてください。</div>';
+      $('revNote').textContent = ''; return;
+    }
+    if (R.pos >= R.order.length) {
+      S.cur = null;
+      var total = R.order.length;
+      body.innerHTML = '<div class="card"><p class="qhead">' + esc(scopeName()) + (R.kind === 'wrong' ? '・わからなかった語' : '') + '</p>' +
+        '<p class="big">一周しました</p>' +
+        '<p class="qprog num">' + total + ' / ' + total + '</p>' +
+        '<p class="mn">わかる ' + R.ok + ' 語、わからない ' + R.wrong.length + ' 語</p>' +
+        '<div class="actrow"><button type="button" class="btn primary" id="rAgain">もう一周する（' + scopeIds().length + '語）</button>' +
+        (R.wrong.length ? '<button type="button" class="btn" id="rWrong">わからなかった語だけ復習する（' + R.wrong.length + '語）</button>' : '') + '</div></div>';
+      $('revNote').textContent = '新しい周は、順番がまた入れ替わります。'; return;
+    }
+    var id = R.order[R.pos];
+    if (!S.cur || S.cur.id !== id) S.cur = { id: id, shown: false };
+    var it = S.items.get(id);
+    body.innerHTML = '<div class="card">' +
+      '<p class="qhead">' + esc(scopeName()) + (R.kind === 'wrong' ? '・わからなかった語' : '') + '</p>' +
+      '<p class="qprog num">' + (R.pos + 1) + ' / ' + R.order.length + '</p>' +
+      '<div class="qwrap"><p class="big">' + esc(it.word) + '</p>' +
+      ('speechSynthesis' in window ? '<button type="button" class="spk lg" data-say="' + esc(it.word) + '" aria-label="発音を聞く">' + SPK + '</button>' : '') +
+      '<button type="button" class="exbtn' + (S.showEx ? ' on' : '') + '" id="exBtn" aria-pressed="' + S.showEx + '">例文</button></div>' +
+      '<p class="qpos">' + (it.ipa ? '/' + esc(it.ipa) + '/　' : '') + esc(it.pos) + '</p>' +
+      '<div class="qans" id="qAns" aria-live="polite"></div>' +
+      '<div class="judge"><button type="button" class="jbtn no" id="jNo">わからない</button><button type="button" class="jbtn yes" id="jYes">わかる</button></div>' +
+      '<p class="hint" style="font-size:12px">押し続けて答えを見る・離すと決定・外で離すと取消</p></div>';
+    if (S.cur.shown) showAnswer(); else hideAnswer();
+    $('revNote').textContent = '一度出た語は、この範囲のすべての語が出るまで、もう出ません。ここまでで、わかる ' + R.ok + ' 語、わからない ' + R.wrong.length + ' 語です。（キーボードは、左矢印が「わからない」、右矢印が「わかる」）';
+  }
+  var AWAIT = '<span class="hint">ボタンを押し続けると、答えが見えます</span>';
+  // Before the answer is shown the box holds the hint; with the 例文 button on it holds the example sentence instead.
+  function hideAnswer() {
+    var el = $('qAns'); if (!el) return;
+    el.classList.remove('on');
+    var it = S.cur && S.items.get(S.cur.id);
+    el.innerHTML = S.showEx && it && it.example ? '<p class="exen">' + hl(it.example) + '</p><span class="hint">ボタンを押し続けると、答えが見えます</span>' : AWAIT;
+  }
+  function showAnswer() {
+    var el = $('qAns'), it = S.cur && S.items.get(S.cur.id);
+    if (!el || !it) return;
+    S.cur.shown = true;
+    var b = document.createElement('b'), en = document.createElement('p'), jp = document.createElement('p');
+    b.textContent = it.meaning_ja;
+    en.className = 'exen'; en.innerHTML = hl(it.example);
+    jp.className = 'exjp'; jp.textContent = it.example_ja;
+    el.innerHTML = ''; el.appendChild(b); el.appendChild(en); el.appendChild(jp);
+    if (it.headword) { var hw = document.createElement('p'); hw.className = 'exbase'; hw.textContent = '見出し語：' + it.headword; el.appendChild(hw); }
+    if ((it.dv || []).length) { var dv = document.createElement('p'); dv.className = 'exdv'; dv.textContent = '派生語：' + dvText(it); el.appendChild(dv); }
+    el.classList.add('on');
+  }
+  function fillGenreFilter() {
+    $('fGenre').innerHTML = '<option value="">すべてのジャンル</option>' + GENRES.map(function (g) { return '<option value="' + g[0] + '">' + esc(g[1]) + '</option>'; }).join('');
+  }
+  // 間違い tab: words marked わからない at least once, newest miss first
+  function missItems() {
+    var m = $('mMat').value, a = [];
+    S.items.forEach(function (it, id) { if ((it.m || 0) > 0 && inScope(it, m, [])) a.push([id, it]); });
+    a.sort(function (x, y) { return (y[1].mt || 0) - (x[1].mt || 0); });
+    return a;
+  }
+  function renderMiss() {
+    var a = missItems();
+    $('missList').innerHTML = a.length ? a.map(function (p) {
+      var when = p[1].mt ? new Date(p[1].mt) : null;
+      var extra = '<div class="acts"><button type="button" class="btn sm primary" data-mact="ok">確認した（一覧から外す）</button>' +
+        (when ? '<span class="hint" style="align-self:center">最後に間違えた日：' + (when.getMonth() + 1) + '/' + when.getDate() + '</span>' : '') + '</div>';
+      return itemHtml(p[0], p[1], { compact: true, extra: extra });
+    }).join('') : '<li class="empty"><b>間違えた語は、ありません。</b><br>復習で「わからない」を押した語が、ここに並びます。</li>';
+    $('mAll').disabled = !a.length;
+  }
+  function renderAll() {
+    counts(); renderLast(); renderPend(); renderNotices();
+    if (S.tab === 'miss') renderMiss();
+    if (S.tab === 'list') renderList();
+    if (S.tab === 'rev') { renderRevScope(); if (press) S.pendingReview = true; else { S.pendingReview = false; renderReview(); } }
+  }
+  function setTab(t) {
+    S.tab = t; document.body.setAttribute('data-tab', t);
+    ['add', 'list', 'rev', 'miss'].forEach(function (k) {
+      $('p-' + k).hidden = k !== t; $('t-' + k).setAttribute('aria-selected', k === t ? 'true' : 'false');
+    });
+    ls.set('mytango-tab', t);
+    if (t === 'list') renderList();
+    if (t === 'rev') { renderRevScope(); renderReview(); }
+    if (t === 'miss') renderMiss();
+  }
+
+  // ---------- export ----------
+  function rows() {
+    var a = Array.from(S.items.values()).sort(function (x, y) { return (x.added || 0) - (y.added || 0); });
+    return a.map(function (it) {
+      return { word: it.word, pos: it.pos, meaning_ja: it.meaning_ja, ipa: it.ipa, genre: it.genre, set: 'user', example: it.example, example_ja: it.example_ja, headword: it.headword || null, derived: (it.dv || []).map(function (d) { return d.w; }), derived_forms: (it.dv || []).map(function (d) { return { word: d.w, pos: d.pos, meaning_ja: d.ja }; }), sources: (it.src || []).map(srcLabel) };
+    });
+  }
+  function jsonText() { return '[\n' + rows().map(function (r) { return JSON.stringify(r); }).join(',\n') + '\n]\n'; }
+  function csvText() {
+    var cols = ['word', 'pos', 'meaning_ja', 'ipa', 'genre', 'set', 'example', 'example_ja', 'headword', 'sources'];
+    var q = function (v) { if (Array.isArray(v)) v = v.join('；'); return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
+    return '﻿' + [cols.join(',')].concat(rows().map(function (r) { return cols.map(function (c) { return q(r[c]); }).join(','); })).join('\r\n') + '\r\n';
+  }
+  function stamp() { var d = new Date(); return d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2); }
+  async function saveFile(name, data) {
+    if (!S.items.size) { flash('書き出す語がありません。', 'err'); return; }
+    if (!S.downloads) { flash('この画面では、ファイルとして保存できません。「JSONをコピー」を使ってください。', 'err'); return; }
+    try { await S.downloads.save({ filename: name, data: data }); flash('保存しました。', 'ok'); }
+    catch (e) { if (e && e.code === 'declined') return; flash('保存できませんでした。「JSONをコピー」を試してください。', 'err'); }
+  }
+  async function copyJson() {
+    if (!S.items.size) { flash('書き出す語がありません。', 'err'); return; }
+    var t = jsonText(), box = $('copyBox');
+    try { await navigator.clipboard.writeText(t); flash('JSONをコピーしました。', 'ok'); box.hidden = true; }
+    catch (e) { box.value = t; box.hidden = false; box.focus(); box.select(); flash('自動でコピーできませんでした。下の欄を、すべて選んでコピーしてください。'); }
+  }
+
+  // ---------- events ----------
+  $('goBtn').addEventListener('click', async function () {
+    if (S.busy) return;
+    if (!S.sample) {
+      flash('準備しています…（最大10秒）');
+      S.sample = await S.sampleP;
+      if (!S.sample) { flash(NO_SAMPLE, 'err'); return; }
+      $('consent').hidden = false;
+    }
+    var key = currentAddSrc();
+    var p = parseWords($('wordsIn').value, key);
+    S.notices = [];
+    var added = p.add.length ? addSources(p.add, key) : [];
+    if (added.length) S.notices.push({ kind: 'text', text: 'すでに登録してある語に、登録元「' + srcLabel(key) + '」を追加しました：' + added.join('、') });
+    if (p.dup.length) S.notices.push({ kind: 'error', text: '重複しているため、登録しませんでした：' + p.dup.join('、') });
+    if (p.bad.length) S.notices.push({ kind: 'text', text: '英単語ではない文字が入っているため、次の語は飛ばしました：' + p.bad.join('、') });
+    var words = p.ok.slice(0, MAXW);
+    if (p.ok.length > MAXW) S.notices.push({ kind: 'text', text: '一度に作れるのは ' + MAXW + ' 語までです。残りは入力欄に残してあります。' });
+    var rest = p.ok.slice(MAXW);
+    if (p.dup.length) flash('重複している語があります：' + p.dup.join('、'), 'err');
+    if (!words.length) {
+      if (!p.dup.length) {
+        if (added.length) flash(added.length + ' 語に、登録元を追加しました。', 'ok');
+        else flash(p.bad.length ? '新しく作る語はありませんでした。' : '単語を入力してください。', p.bad.length ? '' : 'err');
+      }
+      $('wordsIn').value = ''; renderAll(); return;
+    }
+    $('wordsIn').value = words.concat(rest).join('\n');
+    renderAll();
+    var remaining = await addWords(words, { src: key });
+    $('wordsIn').value = remaining.concat(rest).join('\n');
+  });
+  $('stopBtn').addEventListener('click', function () { if (S.ctl) S.ctl.abort(); });
+  $('notices').addEventListener('click', async function (e) {
+    var b = e.target.closest('[data-nact]'); if (!b) return;
+    var i = parseInt(b.getAttribute('data-i'), 10), n = S.notices[i]; if (!n) return;
+    var act = b.getAttribute('data-nact');
+    if (act === 'close') { S.notices.splice(i, 1); renderNotices(); return; }
+    var w = act === 'suggest' ? n.suggest : n.word;
+    S.notices.splice(i, 1); renderNotices();
+    if (S.items.has(slug(w))) { flash('「' + w + '」は、すでに単語帳にあります。'); return; }
+    await addWords([w], { src: n.src || '' });
+  });
+  document.querySelector('.tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-tab]'); if (b) setTab(b.getAttribute('data-tab')); });
+  document.addEventListener('click', function (e) {
+    var s = e.target.closest('[data-say]'); if (s) speak(wordText(s.getAttribute('data-say')));
+  });
+  ['fQ', 'fStatus', 'fGenre', 'fSort', 'fUnit'].forEach(function (id) { $(id).addEventListener(id === 'fQ' ? 'input' : 'change', function () { renderList(); }); });
+  $('fMat').addEventListener('change', function () { fillUnits($('fUnit'), this.value, 'すべての単元'); renderList(); });
+
+  // 登録元 picker on the add tab (remembered between visits)
+  function currentAddSrc() { return srcKey($('aMat').value, $('aUnit').hidden ? '' : $('aUnit').value); }
+  function saveAddSrc() { ls.set('mytango-src', JSON.stringify({ m: $('aMat').value, u: $('aUnit').hidden ? '' : $('aUnit').value })); }
+  $('aMat').addEventListener('change', function () { fillUnits($('aUnit'), this.value, '単元を指定しない'); saveAddSrc(); });
+  $('aUnit').addEventListener('change', saveAddSrc);
+
+  // review scope
+  $('rMat').addEventListener('change', function () {
+    S.rev = { m: this.value, us: [] }; saveRev(); S.cur = null; renderRevScope(); renderReview();
+  });
+  $('rUnits').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-u]'); if (!b) return;
+    var u = b.getAttribute('data-u'), i = S.rev.us.indexOf(u);
+    if (i >= 0) S.rev.us.splice(i, 1); else S.rev.us.push(u);
+    saveRev(); S.cur = null; renderRevScope(); renderReview();
+  });
+
+  // assign / remove a source on the selected words
+  $('bMat').addEventListener('change', function () { fillUnits($('bUnit'), this.value, '単元を指定しない'); renderSel(); });
+  function changeSources(adding) {
+    var m = $('bMat').value, key = srcKey(m, $('bUnit').hidden ? '' : $('bUnit').value), n = 0;
+    if (!m || !S.sel.size) return;
+    S.sel.forEach(function (id) {
+      var it = S.items.get(id); if (!it) return;
+      var cur = it.src || [], next;
+      if (adding) next = cur.indexOf(key) >= 0 ? cur : cur.concat([key]);
+      else next = key === m ? cur.filter(function (k) { return k !== m && k.indexOf(m + '/') !== 0; }) : cur.filter(function (k) { return k !== key; });
+      if (next.length === cur.length && (!adding || next === cur)) return;
+      var c = clone(it); c.src = next; put(c); n++;
+    });
+    renderAll();
+    var label = $('bUnit').hidden || !$('bUnit').value ? MAT[m].name : srcLabel(key);
+    flash(n ? n + ' 語' + (adding ? 'に、登録元「' + label + '」を付けました。' : 'から、登録元「' + label + '」を外しました。') : (adding ? '選んだ語には、すでにその登録元が付いています。' : '選んだ語には、その登録元が付いていません。'), n ? 'ok' : '');
+  }
+  $('bAdd').addEventListener('click', function () { changeSources(true); });
+  $('bDel').addEventListener('click', function () { changeSources(false); });
+
+  var armTimers = {};
+  $('selToggle').addEventListener('click', function () {
+    S.selMode = !S.selMode; S.sel.clear(); S.editId = null; renderList();
+  });
+  $('selAll').addEventListener('click', function () {
+    var vis = visibleItems(), allOn = vis.length > 0 && vis.every(function (p) { return S.sel.has(p[0]); });
+    S.sel.clear();
+    if (!allOn) vis.forEach(function (p) { S.sel.add(p[0]); });
+    renderList();
+  });
+  $('mainList').addEventListener('change', function (e) {
+    var sm = e.target.closest('[data-sm]'); if (!sm) return;
+    fillUnits(sm.closest('.srcedit').querySelector('[data-su]'), sm.value, '単元を指定しない');
+  });
+  $('mainList').addEventListener('click', async function (e) {
+    if (S.selMode) {
+      var li0 = e.target.closest('.item');
+      if (!li0 || e.target.closest('.spk')) return;
+      var cb = li0.querySelector('.selcb');
+      if (!cb) return;
+      if (e.target !== cb) { cb.click(); return; }   // the checkbox's own click comes back through here
+      var id0 = li0.getAttribute('data-id');
+      if (cb.checked) S.sel.add(id0); else S.sel.delete(id0);
+      li0.classList.toggle('sel', cb.checked); renderSel(); return;
+    }
+    var srm = e.target.closest('[data-srm]');
+    if (srm) { S.editSrc = S.editSrc.filter(function (k) { return k !== srm.getAttribute('data-srm'); }); $('srcEdit').innerHTML = srcEditInner(); return; }
+    if (e.target.closest('[data-sadd]')) {
+      var box = $('srcEdit'), m = box.querySelector('[data-sm]').value, su = box.querySelector('[data-su]');
+      var key = srcKey(m, su.hidden ? '' : su.value);
+      if (m && S.editSrc.indexOf(key) < 0) S.editSrc.push(key);
+      $('srcEdit').innerHTML = srcEditInner(); return;
+    }
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var li = b.closest('.item'), id = li.getAttribute('data-id'), it = S.items.get(id), act = b.getAttribute('data-act');
+    if (!it) return;
+    if (act === 'edit') { S.editId = id; S.editSrc = (it.src || []).slice(); li.outerHTML = editHtml(id, it); return; }
+    if (act === 'cancel') { S.editId = null; renderList(); return; }
+    if (act === 'save') {
+      var c = clone(it);
+      li.querySelectorAll('[data-f]').forEach(function (el) { c[el.getAttribute('data-f')] = el.value.trim(); });
+      c.ipa = c.ipa.replace(/[\/\[\]]/g, '');
+      c.headword = c.headword ? c.headword : null;
+      c.example = fixExample(c.example, c.word);
+      c.src = S.editSrc.slice();
+      S.editId = null; put(c); renderAll(); flash('保存しました。', 'ok'); return;
+    }
+    if (act === 'senses') { await chooseSenses(id); return; }
+    if (act === 'regen') { flash('「' + it.word + '」を作り直しています…'); await addWords([it.word], { fresh: true, keepProgress: true }); return; }
+    if (act === 'del') {
+      if (S.armDel !== id) {
+        // the "really delete?" state lives in S, so a redraw of the list does not lose it; it lapses after 6 s
+        S.armDel = id; b.setAttribute('data-armed', '1'); b.textContent = '本当に削除';
+        clearTimeout(armTimers.t);
+        armTimers.t = setTimeout(function () {
+          if (S.armDel !== id) return;
+          S.armDel = null;
+          var cur = document.querySelector('#mainList .item[data-id="' + id + '"] [data-act="del"]');
+          if (cur) { cur.setAttribute('data-armed', '0'); cur.textContent = '削除'; }
+        }, 6000);
+        return;
+      }
+      clearTimeout(armTimers.t); S.armDel = null; S.last = S.last.filter(function (x) { return x !== id; }); del(id); renderAll(); flash('削除しました。');
+    }
+  });
+
+  $('dvBtn').addEventListener('click', fillDerived);
+  $('pend').addEventListener('change', function (e) {
+    var cb = e.target.closest('[data-s]'); if (!cb) return;
+    var p = S.pend[parseInt(cb.closest('.pendcard').getAttribute('data-p'), 10)]; if (!p) return;
+    p.sel[parseInt(cb.getAttribute('data-s'), 10)] = cb.checked; savePend();
+  });
+  $('pend').addEventListener('click', function (e) {
+    var all = e.target.closest('#pendAll'), b = e.target.closest('[data-pact]');
+    if (all) {
+      var left = [], n = 0;
+      S.pend.forEach(function (p) { if (applyPend(p)) n++; else left.push(p); });
+      S.pend = left; savePend(); renderAll();
+      flash(n + ' 語を登録しました。' + (left.length ? left.length + ' 語は、意味が選ばれていないので、そのままです。' : ''), 'ok'); return;
+    }
+    if (!b) return;
+    var i = parseInt(b.closest('.pendcard').getAttribute('data-p'), 10), p = S.pend[i]; if (!p) return;
+    if (b.getAttribute('data-pact') === 'ok') {
+      if (!applyPend(p)) { flash('意味を、ひとつ以上選んでください。', 'err'); return; }
+      flash('「' + p.word + '」を登録しました。', 'ok');
+    } else flash('「' + p.word + '」は、登録しませんでした。');
+    S.pend.splice(i, 1); savePend(); renderAll();
+  });
+  $('mMat').addEventListener('change', renderMiss);
+  function clearMiss(ids) {
+    ids.forEach(function (id) { var it = S.items.get(id); if (!it) return; var c = clone(it); c.m = 0; delete c.mt; put(c); });
+  }
+  $('missList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-mact]'); if (!b) return;
+    var li = b.closest('.item'); clearMiss([li.getAttribute('data-id')]); renderAll(); flash('確認した語を、一覧から外しました。', 'ok');
+  });
+  $('mAll').addEventListener('click', function () {
+    var b = this;
+    if (b.getAttribute('data-armed') !== '1') {
+      b.setAttribute('data-armed', '1'); b.textContent = '本当に外す';
+      setTimeout(function () { b.setAttribute('data-armed', '0'); b.textContent = '表示中をすべて確認した'; }, 4000);
+      return;
+    }
+    var ids = missItems().map(function (p) { return p[0]; });
+    b.setAttribute('data-armed', '0'); b.textContent = '表示中をすべて確認した';
+    clearMiss(ids); renderAll(); flash(ids.length + ' 語を、一覧から外しました。', 'ok');
+  });
+  // no text selection or callout menu while holding buttons on the review screen
+  $('p-rev').addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  $('p-rev').addEventListener('selectstart', function (e) { e.preventDefault(); });
+  function judge(known) {
+    var R = S.cur && curRound();
+    if (!R || R.pos >= R.order.length) return;
+    var id = R.order[R.pos], it = S.items.get(id);
+    if (!it) return;
+    if (known) {
+      R.ok++;
+      if ((it.m || 0) > 0) { var ok = clone(it); ok.m = 0; delete ok.mt; put(ok); }   // answering わかる takes the word off the 間違い list
+    } else { R.wrong.push(id); var c = clone(it); c.m = (c.m || 0) + 1; c.mt = Date.now(); put(c); }   // the miss count is the only thing kept on the word
+    R.pos++; S.cur = null; saveRounds(); counts(); renderReview();
+    if (S.autoSpeak && S.cur) speak(ttsText(S.items.get(S.cur.id)));
+  }
+  function startRound(kind) {
+    var R = curRound(); if (!R) return;
+    S.rounds[scopeKey()] = kind === 'wrong' ? newRound(R.wrong, 'wrong') : newRound(scopeIds(), 'all');
+    S.cur = null; saveRounds(); renderReview();
+    if (S.autoSpeak && S.cur) speak(ttsText(S.items.get(S.cur.id)));
+  }
+  $('revBody').addEventListener('click', function (e) {
+    var ex = e.target.closest('#exBtn');
+    if (ex) {   // 例文: stays on (or off) for every card until pressed again
+      S.showEx = !S.showEx; ls.set('mytango-showex', S.showEx ? '1' : '0');
+      ex.classList.toggle('on', S.showEx); ex.setAttribute('aria-pressed', String(S.showEx));
+      if (S.cur && !S.cur.shown) hideAnswer();
+      return;
+    }
+    if (e.target.closest('#rAgain')) startRound('all');
+    else if (e.target.closest('#rWrong')) startRound('wrong');
+  });
+  // Press and hold shows the answer; letting go on the same button counts as pressing it; letting go elsewhere cancels (the answer stays).
+  var HOLD_MS = 150;
+  $('revBody').addEventListener('pointerdown', function (e) {
+    var btn = e.target.closest('.jbtn');
+    if (!btn || e.button > 0 || press) return;
+    var p = { btn: btn, known: btn.id === 'jYes', timer: 0 };
+    p.timer = setTimeout(function () { if (press === p) showAnswer(); }, HOLD_MS);
+    press = p;
+  });
+  $('revBody').addEventListener('contextmenu', function (e) { if (e.target.closest('.jbtn')) e.preventDefault(); });
+  $('revBody').addEventListener('click', function (e) {
+    if (e.detail !== 0) return;   // keyboard / assistive tech only
+    if (e.target.closest('#jYes')) judge(true);
+    else if (e.target.closest('#jNo')) judge(false);
+  });
+  document.addEventListener('pointerup', function (e) {
+    if (!press) return;
+    var p = press; press = null; clearTimeout(p.timer);
+    var el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && (el === p.btn || p.btn.contains(el))) judge(p.known);
+    else if (S.pendingReview) renderAll();
+  });
+  document.addEventListener('pointercancel', function () {
+    if (!press) return;
+    clearTimeout(press.timer); press = null;
+    if (S.pendingReview) renderAll();
+  });
+  document.addEventListener('touchmove', function (e) { if (press && e.cancelable) e.preventDefault(); }, { passive: false });
+  document.addEventListener('keydown', function (e) {
+    if (S.tab !== 'rev' || !S.cur || e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); judge(false); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); judge(true); }
+  });
+  fillVoiceSel();
+  var VOICE_TEST = 'Thank you for your patience.';
+  $('voiceSel').addEventListener('change', function () {
+    VPREF = this.value; ls.set('mytango-voice', VPREF); loadVoices(); speak(VOICE_TEST);
+  });
+  $('voiceTest').addEventListener('click', function () { speak(VOICE_TEST); });
+  $('autoSpeak').checked = S.autoSpeak;
+  $('autoSpeak').addEventListener('change', function () { S.autoSpeak = this.checked; ls.set('mytango-speak', this.checked ? '1' : '0'); });
+  $('exJson').addEventListener('click', function () { saveFile('my-wordbank-' + stamp() + '.json', jsonText()); });
+  $('exCsv').addEventListener('click', function () { saveFile('my-wordbank-' + stamp() + '.csv', csvText()); });
+  $('exCopy').addEventListener('click', copyJson);
+
+  // ---------- start ----------
+  fillGenreFilter();
+  document.body.setAttribute('data-tab', 'add');
+  $('aMat').innerHTML = matOptions('指定しない');
+  $('bMat').innerHTML = matOptions('教材を選ぶ');
+  $('fMat').innerHTML = matOptions('すべての教材', '<option value="_none">登録元なし</option>');
+  $('rMat').innerHTML = matOptions('すべての教材', '<option value="_none">登録元なし</option>');
+  $('mMat').innerHTML = matOptions('すべての教材', '<option value="_none">登録元なし</option>');
+  try {
+    var sa = JSON.parse(ls.get('mytango-src') || 'null');
+    if (sa && MAT[sa.m]) { $('aMat').value = sa.m; fillUnits($('aUnit'), sa.m, '単元を指定しない'); if (sa.u && MAT[sa.m].u[sa.u]) $('aUnit').value = sa.u; }
+    var pd = JSON.parse(ls.get('mytango-pend') || 'null');
+    if (Array.isArray(pd)) S.pend = pd.filter(function (p) { return p && p.word && Array.isArray(p.senses) && p.senses.length >= 2 && Array.isArray(p.sel); });
+    var rd = JSON.parse(ls.get('mytango-rounds') || 'null');
+    if (rd && typeof rd === 'object') S.rounds = rd;
+    var sr = JSON.parse(ls.get('mytango-rev') || 'null');
+    if (sr && (sr.m === '_none' || MAT[sr.m])) S.rev = { m: sr.m, us: (sr.us || []).filter(function (u) { return MAT[sr.m] && MAT[sr.m].u[u]; }) };
+  } catch (e) {}
+  var t0 = ls.get('mytango-tab'); if (t0 === 'list' || t0 === 'rev' || t0 === 'miss') setTab(t0);
+  renderAll();
+  S.sampleP = use('sample');
+  (async function () {
+    S.sample = await S.sampleP; S.downloads = await use('downloads');
+    if (S.sample) $('consent').hidden = false;
+    else flash(NO_SAMPLE, 'err');
+    await initStore();
+    $('modeNote').textContent = S.mode === 'db' ? '保存先：クラウド（PC とスマホで同じ単語帳になります）' : '保存先：この端末の中だけ（ほかの端末とは同期しません）';
+    renderAll();
+  })();
+})();
+</script>
