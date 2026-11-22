@@ -883,6 +883,12 @@ grant execute on function public.mytango_delete(text, text) to anon;
   }
   function cleanSupa(f) {
     var url = (f.supaUrl || '').replace(/\s+/g, ''), key = (f.supaKey || '').replace(/\s+/g, ''), code = (f.syncCode || '').trim(), problems = [];
+    var bare = url.replace(/^https?:\/\//i, '');
+    if (/^(sb_publishable_|sb_secret_|eyJ)/.test(bare)) {   // a key was pasted into the Project URL box: move it where it belongs
+      if (!key) key = bare;
+      url = '';
+      problems.push('・「Project URL」の欄に、キー（' + bare.slice(0, 15) + '…）が入っていました。' + (key === bare ? 'キーは、「公開キー」の欄に、移しました。' : '') + 'Project URL は、別の文字です。Supabase のダッシュボードの、アドレス欄の最後の、20文字ほどの英小文字から、作ります。');
+    }
     var m = url.match(/supabase\.com\/dashboard\/project\/([a-z0-9]{20})/i);   // the address of the dashboard page was pasted
     if (m) url = 'https://' + m[1].toLowerCase() + '.supabase.co';
     url = url.replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '');
