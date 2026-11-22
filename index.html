@@ -876,12 +876,41 @@ grant execute on function public.mytango_delete(text, text) to anon;
     msg('AI に問い合わせています…');
     M.testModel().then(function (r) { msg(r.ok ? 'AI につながりました。' : 'うまくいきませんでした：' + r.error, r.ok ? 'ok' : 'err'); });
   });
+  // The three sync values, tidied the way people tend to paste them (spaces and line breaks inside, the dashboard address instead
+  // of the Project URL, a trailing /rest/v1), and checked, so a mistake is reported in plain words instead of "Failed to fetch".
+  function isServiceRole(key) {
+    try { var p = JSON.parse(atob(key.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); return p.role === 'service_role'; } catch (e) { return false; }
+  }
+  function cleanSupa(f) {
+    var url = (f.supaUrl || '').replace(/\s+/g, ''), key = (f.supaKey || '').replace(/\s+/g, ''), code = (f.syncCode || '').trim(), problems = [];
+    var m = url.match(/supabase\.com\/dashboard\/project\/([a-z0-9]{20})/i);   // the address of the dashboard page was pasted
+    if (m) url = 'https://' + m[1].toLowerCase() + '.supabase.co';
+    url = url.replace(/\/rest\/v1.*$/i, '').replace(/\/+$/, '');
+    if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    var local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url);
+    if (!url) problems.push('・Project URL が、空です。');
+    else if (!local && !/^https:\/\/[a-z0-9-]+\.supabase\.(co|in|red)$/i.test(url)) problems.push('・Project URL の形が違います。「https://（20文字ほどの英小文字と数字）.supabase.co」の形です。いまの値：' + url);
+    if (!key) problems.push('・公開キーが、空です。');
+    else if (/^sb_secret_/i.test(key) || isServiceRole(key)) problems.push('・これは「秘密のキー」です。使えません（使ってはいけません）。「Publishable key」（sb_publishable_…）か、「anon」（eyJ…）のキーを入れてください。');
+    else if (!local && !/^(sb_publishable_|eyJ)/.test(key)) problems.push('・公開キーの形が違います。「sb_publishable_」か「eyJ」で始まる文字です。URL を入れていないか、確かめてください。');
+    if (code.length < 16) problems.push('・同期コードは、16文字以上です（いまは ' + code.length + '文字）。「同期コードを作る」を押してください。');
+    return { supaUrl: url, supaKey: key, syncCode: code, problems: problems };
+  }
+  function explainSupa(err) {
+    var e = String(err || '');
+    if (/PGRST202|Could not find the function|does not exist|HTTP 404/i.test(e)) return 'Supabase には、つながりました。ただ、**SQL を、まだ実行していません**（または、途中で止まっています）。\n→ 「SQL Editor」で、SQL を全部貼り付けて、「Run」を押してください。「Success」と出れば、もう一度、試してください。';
+    if (/HTTP 401|HTTP 403|Invalid API key|JWT/i.test(e)) return 'Supabase には、つながりましたが、**公開キーが、受け付けられません。**\n→ キーを、もう一度、コピーし直してください（「Publishable key」か「anon」。途中で切れていないか）。\n' + e.slice(0, 160);
+    if (/Failed to fetch|NetworkError|Load failed|unavailable/i.test(e)) return '**Project URL の場所に、つながりません。**\n→ 綴りを確かめてください。作ったばかりなら、1〜2分、待ってから、もう一度、試してください。プロジェクトが「Paused」（一時停止）になっていないかも、見てください。広告ブロックなどが、通信を止めている場合もあります。';
+    if (/HTTP 400/i.test(e)) return 'Supabase からの返事：' + e.slice(0, 200);
+    return '原因が、分かりません。次の文字を、教えてください：' + e.slice(0, 200);
+  }
   $('spTest').addEventListener('click', function () {
-    var f = stash();
-    if (!f.supaUrl || !f.supaKey || f.syncCode.length < 16) { msg('URL、公開キー、16文字以上の同期コードを入れてください。', 'err'); return; }
+    var f = cleanSupa(stash());
+    $('spUrl').value = f.supaUrl; $('spKey').value = f.supaKey;   // show the tidied values
+    if (f.problems.length) { msg('入力を、確かめてください。\n' + f.problems.join('\n'), 'err'); return; }
     msg('接続しています…');
     M.testSupabase(f.supaUrl, f.supaKey, f.syncCode).then(function (r) {
-      msg(r.ok ? 'つながりました。（このコードの語は、サーバーに ' + (r.rows ? '1件以上' : 'まだありません') + '）' : 'つながりません：' + r.error + '\nURL・キー・SQL の実行を確かめてください。', r.ok ? 'ok' : 'err');
+      msg(r.ok ? 'つながりました。（このコードの語は、サーバーに ' + (r.rows ? '1件以上' : 'まだありません') + '）\n→ 「保存して再読み込み」を押してください。' : 'つながりません。\n' + explainSupa(r.error), r.ok ? 'ok' : 'err');
     });
   });
   $('spGen').addEventListener('click', function () {
@@ -902,7 +931,11 @@ grant execute on function public.mytango_delete(text, text) to anon;
   // --- save / clear
   $('setSave').addEventListener('click', function () {
     var f = stash();
-    if ((f.supaUrl || f.supaKey || f.syncCode) && !(f.supaUrl && f.supaKey && f.syncCode.length >= 16)) { msg('同期を使うには、URL、公開キー、16文字以上の同期コードが、すべて必要です。', 'err'); return; }
+    if (f.supaUrl || f.supaKey || f.syncCode) {
+      var c = cleanSupa(f);
+      if (c.problems.length) { msg('同期の入力を、確かめてください。\n' + c.problems.join('\n'), 'err'); return; }
+      f.supaUrl = c.supaUrl; f.supaKey = c.supaKey; f.syncCode = c.syncCode;
+    }
     var o = {}; Object.keys(f).forEach(function (k) { if (f[k]) o[k] = f[k]; });
     M.settings.set(o); location.reload();
   });

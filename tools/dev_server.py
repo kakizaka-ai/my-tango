@@ -56,6 +56,9 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/mock/_state"):
             return self._json(200, {"db": DB, "calls": STATE["calls"]})
+        if self.path.startswith("/mock/_nofunc"):
+            STATE["nofunc"] = "on" in self.path
+            return self._json(200, {"nofunc": STATE["nofunc"]})
         if self.path.startswith("/mock/_fail"):
             STATE["fail"] = "on" in self.path
             return self._json(200, {"fail": STATE["fail"]})
@@ -85,6 +88,10 @@ class Handler(SimpleHTTPRequestHandler):
         STATE["calls"].append(fn)
         if STATE["fail"]:
             return self._json(503, {"message": "down for the test"})
+        if STATE.get("nofunc"):   # what Supabase answers when setup.sql has not been run
+            return self._json(404, {"code": "PGRST202", "message": "Could not find the function public.%s(code, p_limit, p_offset) in the schema cache" % fn})
+        if (self.headers.get("apikey") or "") == "bad-key":
+            return self._json(401, {"message": "Invalid API key"})
         code = body.get("code", "")
         if len(code) < 16:
             return self._json(400, {"message": "sync code too short"})
