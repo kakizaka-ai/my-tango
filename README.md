@@ -6,8 +6,8 @@ TOEIC 用の、自分だけの単語帳です。分からなかった英単語�
 もともとは claude.ai の「アーティファクト」として作りました。このフォルダーは、**claude.ai がなくても動く版**です。
 ブラウザだけで動く、静的なページ（`index.html` 1枚）です。サーバーは要りません。
 
-**公開ページ**：https://kakizaka-ai.github.io/my-tango/　（スマホは、このアドレスを開いて、「ホーム画面に追加」）
-**リポジトリ**：https://github.com/kakizaka-ai/my-tango
+**公開ページ**：https://tomokaki14-dotcom.github.io/my-tango/　（スマホは、このアドレスを開いて、「ホーム画面に追加」）
+**リポジトリ**：https://github.com/tomokaki14-dotcom/my-tango
 
 ## 目次
 1. [フォルダーの中身](#フォルダーの中身)
