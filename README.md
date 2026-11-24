@@ -72,6 +72,10 @@ gh repo create my-tango --public --source=. --push
 - OpenAI 互換の API（`/chat/completions` の形式）なら、「API の場所」を変えて、使えます。
 - AI に頼む文章（プロンプト）は、`src/app.html` の `buildPrompt`、`DERIVED_RULE`、`SENSE_RULE`、`sensePrompt`、`dvPrompt` にあります。
 
+
+### 無料で使う（Google Gemini / Groq）
+「設定」→「AI で自動作成」で、「サービス」に、「Google Gemini」か「Groq」を選ぶと、API の場所が、自動で入ります。キーは、それぞれの無料の画面（Google AI Studio、Groq Console）で作れます。「使えるモデルを調べる」で、使えるモデルの名前を、選べます。無料の枠には、回数の上限があります。通信の窓口は、このページから、呼び出せることを確かめましたが、実際のキーでの作成は、試していません。
+
 ### AI を使わずに、Codex に語を作ってもらう方法
 1. Codex に、「次の英単語を、`docs/data-format.md` の形式の JSON にして」と頼む。語の一覧を渡す。
 2. 出てきた JSON を、「設定」の「JSON を貼り付けて取り込む」に貼る。

@@ -737,12 +737,26 @@
     </fieldset>
 
     <fieldset>
-      <legend>AI で自動作成（OpenAI）</legend>
-      <p class="hint">語を入れると、意味・発音記号・例文などを、AI が作ります。キーは、このブラウザの中だけに保存されます。使った分の料金は、あなたの OpenAI アカウントにかかります。</p>
-      <label>API キー<input type="password" id="aiKey" autocomplete="off" placeholder="sk-…"></label>
-      <label>モデル<input type="text" id="aiModel" placeholder="gpt-4.1-mini"></label>
-      <label>API の場所（ふつうは、そのまま）<input type="url" id="aiBase" placeholder="https://api.openai.com/v1"></label>
+      <legend>AI で自動作成</legend>
+      <p class="hint">語を入れると、意味・発音記号・例文などを、AI が作ります。キーは、このブラウザの中だけに保存されます。<b>Google Gemini と Groq には、無料の枠があります。</b>OpenAI は、使った分だけ、料金がかかります。</p>
+      <label>サービス
+        <select id="aiProv">
+          <option value="gemini">Google Gemini（無料の枠あり）</option>
+          <option value="groq">Groq（無料の枠あり）</option>
+          <option value="openai">OpenAI（有料）</option>
+          <option value="custom">その他（OpenAI 互換）</option>
+        </select>
+      </label>
+      <label>API キー<input type="password" id="aiKey" autocomplete="off" placeholder="キーを貼り付ける"></label>
+      <div class="row"><button type="button" class="btn sm" id="aiList">使えるモデルを調べる</button><select id="aiModelPick" hidden aria-label="使えるモデル"></select></div>
+      <label>モデル<input type="text" id="aiModel" placeholder="「使えるモデルを調べる」で選べます" list="aiModels"></label>
+      <datalist id="aiModels"></datalist>
+      <label>API の場所（サービスを選ぶと、自動で入ります）<input type="url" id="aiBase" placeholder="https://…"></label>
       <div class="row"><button type="button" class="btn sm" id="aiTest">試す</button></div>
+      <details>
+        <summary>無料のキーの、作りかた</summary>
+        <p class="hint"><b>Google Gemini</b>：https://aistudio.google.com を開く → Google アカウントで入る →「Get API key」→「Create API key」→ 出てきたキーを、コピーして、上の「API キー」に貼る。<br><b>Groq</b>：https://console.groq.com を開く →「API Keys」→「Create API Key」。</p>
+      </details>
     </fieldset>
 
     <fieldset>
@@ -836,6 +850,8 @@ grant execute on function public.mytango_delete(text, text) to anon;
   function fill() {
     var c = M.settings.get();
     $('aiKey').value = c.openaiKey || ''; $('aiModel').value = c.model || ''; $('aiBase').value = c.openaiBase || '';
+    $('aiProv').value = provOf(c.openaiBase); if (!c.openaiBase && PROV.gemini) { $('aiBase').value = PROV.gemini.base; }
+    $('aiModelPick').hidden = true;
     $('spUrl').value = c.supaUrl || ''; $('spKey').value = c.supaKey || ''; $('spCode').value = c.syncCode || '';
     $('spCode').type = 'password'; $('spShow').textContent = '表示する';
   }
@@ -870,11 +886,64 @@ grant execute on function public.mytango_delete(text, text) to anon;
     return { openaiKey: $('aiKey').value.trim(), model: $('aiModel').value.trim(), openaiBase: $('aiBase').value.trim(),
       supaUrl: $('spUrl').value.trim(), supaKey: $('spKey').value.trim(), syncCode: $('spCode').value.trim() };
   }
+  // --- AI service: presets, the list of usable models, and plain-language reasons for failure
+  var PROV = {
+    gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', hint: 'gemini-2.0-flash' },
+    groq:   { base: 'https://api.groq.com/openai/v1', hint: 'llama-3.3-70b-versatile' },
+    openai: { base: 'https://api.openai.com/v1', hint: 'gpt-4.1-mini' }
+  };
+  function provOf(base) {
+    base = String(base || '').replace(/\/+$/, '');
+    for (var k in PROV) if (PROV[k].base === base) return k;
+    return base ? 'custom' : 'gemini';
+  }
+  $('aiProv').addEventListener('change', function () {
+    var p = PROV[this.value];
+    if (p) { $('aiBase').value = p.base; $('aiModel').placeholder = '例：' + p.hint + '（「使えるモデルを調べる」で選べます）'; }
+    $('aiModelPick').hidden = true;
+  });
+  function cleanAi() {
+    var f = stash(); f.openaiKey = f.openaiKey.replace(/\s+/g, ''); f.openaiBase = f.openaiBase.replace(/\s+/g, '').replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
+    var problems = [];
+    if (!f.openaiKey) problems.push('・API キーが、空です。');
+    if (!/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$))/.test(f.openaiBase)) problems.push('・API の場所が、空か、形が違います（https:// から始まります）。「サービス」を選び直してください。');
+    return { f: f, problems: problems };
+  }
+  function explainAi(err) {
+    var e = String(err || '');
+    if (/no_key/i.test(e)) return 'API キーが、空です。';
+    if (/HTTP 429|quota|rate.?limit|RESOURCE_EXHAUSTED/i.test(e)) return '**使える回数の上限に、達しています。**\n→ 1分ほど、待って、もう一度、試してください。「limit: 0」と出ているときは、このモデルには、無料の枠が、ありません。「使えるモデルを調べる」で、別のモデルを選んでください。\n' + e.slice(0, 200);
+    if (/HTTP 404|not found|is not supported|does not exist|decommission/i.test(e)) return '**モデルの名前が、違うようです**（または、そのモデルは、もう使えません）。\n→ 「使えるモデルを調べる」を押して、出てきた中から、選んでください。\n' + e.slice(0, 200);
+    if (/HTTP 401|HTTP 403|valid API key|API key not valid|invalid.*key|not_granted/i.test(e)) return '**API キーが、受け付けられません。**\n→ キーを、もう一度、コピーし直してください（途中で切れていないか）。サービスと、キーの、組み合わせが、合っているかも、確かめてください（Gemini のキーは、Gemini を選ぶ）。\n' + e.slice(0, 160);
+    if (/Failed to fetch|NetworkError|Load failed|upstream_error.*fetch/i.test(e)) return '**API の場所に、つながりません。**\n→ 「サービス」を選び直して、API の場所を、入れ直してください。インターネットの接続や、広告ブロックも、確かめてください。';
+    if (/HTTP 400/i.test(e)) return 'リクエストが、受け付けられませんでした。モデルの名前を、「使えるモデルを調べる」で、選び直してください。\n' + e.slice(0, 240);
+    return '原因が、分かりません。次の文字を、教えてください：' + e.slice(0, 240);
+  }
+  $('aiList').addEventListener('click', function () {
+    var c = cleanAi(); $('aiKey').value = c.f.openaiKey;
+    if (c.problems.length) { msg('入力を、確かめてください。\n' + c.problems.join('\n'), 'err'); return; }
+    msg('使えるモデルを、調べています…');
+    fetch(c.f.openaiBase + '/models', { headers: { Authorization: 'Bearer ' + c.f.openaiKey } }).then(function (r) {
+      if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 200)); });
+      return r.json();
+    }).then(function (j) {
+      var ids = (j.data || j.models || []).map(function (m) { return String(m.id || m.name || '').replace(/^models\//, ''); })
+        .filter(function (id) { return id && !/embed|whisper|tts|audio|image|imagen|veo|guard|aqa|moderation|dall|transcribe|realtime|vision-preview/i.test(id); }).sort();
+      if (!ids.length) { msg('使えるモデルの一覧が、空でした。モデルの名前を、手で入れてください。', 'err'); return; }
+      $('aiModels').innerHTML = ids.map(function (id) { return '<option value="' + id.replace(/"/g, '') + '">'; }).join('');
+      var pick = $('aiModelPick'); pick.innerHTML = '<option value="">（ここから選ぶ：' + ids.length + '件）</option>' + ids.map(function (id) { return '<option>' + id.replace(/</g, '') + '</option>'; }).join('');
+      pick.hidden = false; pick.onchange = function () { if (pick.value) $('aiModel').value = pick.value; };
+      var best = ids.filter(function (id) { return /flash|mini|instant|8b|70b/i.test(id); })[0];
+      msg('使えるモデルが、' + ids.length + '件、見つかりました。右の「ここから選ぶ」から、選んでください。' + (best ? '\nおすすめ（軽くて、速いもの）：' + best : ''), 'ok');
+    }, function (e) { msg('モデルの一覧を、取れませんでした。\n' + explainAi(e.message || e), 'err'); });
+  });
   $('aiTest').addEventListener('click', function () {
-    var cur = M.settings.get(), f = stash();
+    var cur = M.settings.get(), c = cleanAi(), f = c.f; $('aiKey').value = f.openaiKey; $('aiBase').value = f.openaiBase;
+    if (!f.model) c.problems.push('・モデルが、空です。「使えるモデルを調べる」を、押してください。');
+    if (c.problems.length) { msg('入力を、確かめてください。\n' + c.problems.join('\n'), 'err'); return; }
     M.settings.set(Object.assign({}, cur, { openaiKey: f.openaiKey, model: f.model, openaiBase: f.openaiBase }));   // the test reads the saved settings
-    msg('AI に問い合わせています…');
-    M.testModel().then(function (r) { msg(r.ok ? 'AI につながりました。' : 'うまくいきませんでした：' + r.error, r.ok ? 'ok' : 'err'); });
+    msg('AI に問い合わせています…（数秒かかります）');
+    M.testModel().then(function (r) { msg(r.ok ? 'AI につながりました。\n→ 「保存して再読み込み」を押してください。' : 'うまくいきませんでした。\n' + explainAi(r.error), r.ok ? 'ok' : 'err'); });
   });
   // The three sync values, tidied the way people tend to paste them (spaces and line breaks inside, the dashboard address instead
   // of the Project URL, a trailing /rest/v1), and checked, so a mistake is reported in plain words instead of "Failed to fetch".

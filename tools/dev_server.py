@@ -56,6 +56,11 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/mock/_state"):
             return self._json(200, {"db": DB, "calls": STATE["calls"]})
+        if self.path.startswith("/mock/openai/v1/models"):   # like Gemini's OpenAI-compatible list: ids carry a "models/" prefix
+            if (self.headers.get("Authorization") or "") != "Bearer test-key":
+                return self._json(401, {"error": {"message": "Incorrect API key"}})
+            ids = ["models/gemini-2.0-flash", "models/gemini-2.5-flash", "models/gemini-2.5-pro", "models/text-embedding-004", "models/imagen-3.0-generate-002", "models/aqa"]
+            return self._json(200, {"object": "list", "data": [{"id": i, "object": "model"} for i in ids]})
         if self.path.startswith("/mock/_nofunc"):
             STATE["nofunc"] = "on" in self.path
             return self._json(200, {"nofunc": STATE["nofunc"]})
@@ -108,8 +113,15 @@ class Handler(SimpleHTTPRequestHandler):
         return self._json(404, {"message": "unknown function"})
 
     def _openai(self, body):
-        if (self.headers.get("Authorization") or "") != "Bearer test-key":
+        auth = self.headers.get("Authorization") or ""
+        if auth == "Bearer gemini-style-bad":   # Gemini answers an invalid key with 400, not 401
+            return self._json(400, [{"error": {"code": 400, "message": "Please pass a valid API key", "status": "INVALID_ARGUMENT"}}])
+        if auth == "Bearer limit-key":
+            return self._json(429, {"error": {"code": 429, "message": "You exceeded your current quota (limit: 0)", "status": "RESOURCE_EXHAUSTED"}})
+        if auth != "Bearer test-key":
             return self._json(401, {"error": {"message": "Incorrect API key"}})
+        if body.get("model") == "gone-model":
+            return self._json(404, {"error": {"message": "models/gone-model is not found for API version v1beta", "status": "NOT_FOUND"}})
         prompt = body["messages"][-1]["content"]
         if "Reply with only this JSON" in prompt:
             text = "[1]"
