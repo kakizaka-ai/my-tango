@@ -268,7 +268,7 @@
   function defaultGenre(pos) { return { '形': 'state', '動': 'action', '副': 'gen', '前': 'gen', '接': 'gen', '熟語': 'gen' }[pos] || 'other'; }
   // accepts the app's own backup docs, and the spec form in docs/wordbank_spec.md (word, pos, meaning_ja, ipa, genre, example, example_ja, headword, derived)
   function normalizeDoc(w) {
-    if (!w || typeof w !== 'object' || !str(w.word)) return null;
+    if (!w || typeof w !== 'object' || !str(w.word) || w.error) return null;   // an {"word":…, "error":…} entry is the AI saying it could not make that word
     var pos = POS.indexOf(w.pos) >= 0 ? w.pos : '名';
     var out = {
       word: str(w.word), pos: pos, meaning_ja: str(w.meaning_ja), ipa: str(w.ipa).replace(/[\/\[\]]/g, ''),

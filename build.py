@@ -47,7 +47,12 @@ for old, new, n in PATCHES:
 i = app.index("<main")
 head_part, body_part = app[:i], app[i:]
 j = body_part.index("</main>") + len("</main>")
-body_part = body_part[:j] + "\n\n" + rd("src", "settings.html").replace("/*SQL*/", rd("supabase", "setup.sql").replace("&", "&amp;").replace("<", "&lt;")) + body_part[j:]
+import json
+settings = rd("src", "settings.html")
+settings = settings.replace("/*SQL*/", rd("supabase", "setup.sql").replace("&", "&amp;").replace("<", "&lt;"))
+# the request text for free chat AIs, as a JavaScript string literal ("</" is split so it cannot end the script)
+settings = settings.replace("/*PROMPT*/", json.dumps(rd("src", "ai-prompt.txt"), ensure_ascii=False)[1:-1].replace("</", "<\\/"))
+body_part = body_part[:j] + "\n\n" + settings + body_part[j:]
 
 doc = """<!doctype html>
 <html lang="ja">

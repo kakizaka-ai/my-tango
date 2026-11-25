@@ -31,7 +31,9 @@
         <button type="button" class="btn sm primary" id="bkSave">すべて保存（JSON）</button>
         <label class="btn sm" style="cursor:pointer">ファイルから読み込む<input type="file" id="bkFile" accept=".json,application/json" hidden></label>
       </div>
-      <label>JSON を貼り付けて取り込む（バックアップ、または Codex などが作った語のデータ）
+      <p class="hint"><b>AI を使わずに、語を作る方法（無料の ChatGPT・Claude・Gemini など）</b><br>① 下のボタンで、AI に頼む文章を、コピーする。② 無料の AI のチャットに貼り付け、その下に、分からなかった語を、1行に1語、書いて送る。③ 返ってきた JSON を、コピーして、下の欄に貼り、「貼り付けを取り込む」を押す。</p>
+      <div class="row"><button type="button" class="btn sm" id="aiPromptCopy">AI に頼む文章をコピー</button></div>
+      <label>JSON を貼り付けて取り込む（バックアップ、または AI が作った語のデータ）
         <textarea id="bkText" placeholder='[{"word":"postpone","pos":"動","meaning_ja":"延期する",…}]'></textarea>
       </label>
       <div class="row">
@@ -133,6 +135,14 @@
     return { openaiKey: $('aiKey').value.trim(), model: $('aiModel').value.trim(), openaiBase: $('aiBase').value.trim(),
       supaUrl: $('spUrl').value.trim(), supaKey: $('spKey').value.trim(), syncCode: $('spCode').value.trim() };
   }
+  // the request text for a free chat AI (kept in src/ai-prompt.txt)
+  var AI_PROMPT = "/*PROMPT*/";
+  $('aiPromptCopy').addEventListener('click', function () {
+    (navigator.clipboard ? navigator.clipboard.writeText(AI_PROMPT) : Promise.reject()).then(
+      function () { msg('AI に頼む文章を、コピーしました。AI のチャットに貼り付けて、その下に、語を書いて送ってください。', 'ok'); },
+      function () { $('bkText').value = AI_PROMPT; $('bkText').select(); msg('自動でコピーできませんでした。下の欄に、文章を入れたので、全部を選んで、コピーしてください。', 'err'); });
+  });
+
   // --- AI service: presets, the list of usable models, and plain-language reasons for failure
   var PROV = {
     gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', hint: 'gemini-2.0-flash' },

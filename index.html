@@ -285,7 +285,7 @@
   function defaultGenre(pos) { return { '形': 'state', '動': 'action', '副': 'gen', '前': 'gen', '接': 'gen', '熟語': 'gen' }[pos] || 'other'; }
   // accepts the app's own backup docs, and the spec form in docs/wordbank_spec.md (word, pos, meaning_ja, ipa, genre, example, example_ja, headword, derived)
   function normalizeDoc(w) {
-    if (!w || typeof w !== 'object' || !str(w.word)) return null;
+    if (!w || typeof w !== 'object' || !str(w.word) || w.error) return null;   // an {"word":…, "error":…} entry is the AI saying it could not make that word
     var pos = POS.indexOf(w.pos) >= 0 ? w.pos : '名';
     var out = {
       word: str(w.word), pos: pos, meaning_ja: str(w.meaning_ja), ipa: str(w.ipa).replace(/[\/\[\]]/g, ''),
@@ -726,7 +726,9 @@
         <button type="button" class="btn sm primary" id="bkSave">すべて保存（JSON）</button>
         <label class="btn sm" style="cursor:pointer">ファイルから読み込む<input type="file" id="bkFile" accept=".json,application/json" hidden></label>
       </div>
-      <label>JSON を貼り付けて取り込む（バックアップ、または Codex などが作った語のデータ）
+      <p class="hint"><b>AI を使わずに、語を作る方法（無料の ChatGPT・Claude・Gemini など）</b><br>① 下のボタンで、AI に頼む文章を、コピーする。② 無料の AI のチャットに貼り付け、その下に、分からなかった語を、1行に1語、書いて送る。③ 返ってきた JSON を、コピーして、下の欄に貼り、「貼り付けを取り込む」を押す。</p>
+      <div class="row"><button type="button" class="btn sm" id="aiPromptCopy">AI に頼む文章をコピー</button></div>
+      <label>JSON を貼り付けて取り込む（バックアップ、または AI が作った語のデータ）
         <textarea id="bkText" placeholder='[{"word":"postpone","pos":"動","meaning_ja":"延期する",…}]'></textarea>
       </label>
       <div class="row">
@@ -886,6 +888,14 @@ grant execute on function public.mytango_delete(text, text) to anon;
     return { openaiKey: $('aiKey').value.trim(), model: $('aiModel').value.trim(), openaiBase: $('aiBase').value.trim(),
       supaUrl: $('spUrl').value.trim(), supaKey: $('spKey').value.trim(), syncCode: $('spCode').value.trim() };
   }
+  // the request text for a free chat AI (kept in src/ai-prompt.txt)
+  var AI_PROMPT = "あなたは TOEIC 対策の英単語帳を作るアシスタントです。下の「語」の一覧の、1語（または熟語）ごとに、1つの JSON オブジェクトを作り、JSON の配列だけを返してください（前後に説明の文章は付けない。コードブロックに入れても構いません）。入力と同じ順番、同じ件数にします。\n\n各オブジェクトの形：\n{\"word\":\"入力の綴りそのまま\",\"pos\":\"名\",\"meaning_ja\":\"…\",\"ipa\":\"…\",\"genre\":\"…\",\"example\":\"…\",\"example_ja\":\"…\",\"headword\":null,\"dv\":[{\"w\":\"…\",\"pos\":\"名\",\"ja\":\"…\"}]}\n\n規則：\n- pos：名・動・形・副・前・接・熟語 のどれか1つ。空白を含む語は、熟語。\n- meaning_ja：日本語の意味。TOEIC で多い意味を先に。複数ある場合は「、」で区切る。\n- ipa：米音の発音記号。前後のスラッシュ（/ /）は付けない。強勢は ˈ（第1）と ˌ（第2）で示す。熟語は、語ごとの記号を、空白でつなぐ。\n- genre：次の id から、最も近いものを1つ：hr=人事・雇用、law=契約・法務・規則、fin=財務・お金、sales=販売・広告・顧客、mfg=製造・物流・在庫、office=会議・事務・連絡、travel=旅行・交通・宿泊・飲食、build=建物・不動産・設備、health=医療・健康・安全、edu=教育・研究、env=環境・自然・エネルギー、state=状態・性質、action=動作・変化、gen=副詞・つなぎ・熟語、other=その他。迷ったら：形容詞は state、動詞は action、副詞・前置詞・接続詞・熟語は gen、名詞は other。\n- example：3〜5語ほどの短いフレーズで、仕事・旅行・日常の場面にする。対象の語（活用や複数形になった形でもよい）を * で1か所だけ囲む。例：\"*accept* an offer\"、\"a *number of* customers\"。辞書や教材の例文を写さず、自分で作る。\n- example_ja：例文の、自然な日本語訳。\n- headword：入力が活用形や派生語（例：postponed、acceptable）で、より基本の語（postpone、accept）があるときは、その語。なければ null。\n- dv：その語から作られる主な派生語（名詞形、動詞形、形容詞形、副詞形、人を表す名詞など）。TOEIC で使うものだけを、多くても5つ。入力した語自身は入れない。熟語や、派生語がない語は、空の配列 []。\n- 英単語や熟語として確認できない語（綴りの間違いなど）は、{\"word\":\"入力\",\"error\":\"短い理由\"} とする。\n\n語（1行に1語）：\n";
+  $('aiPromptCopy').addEventListener('click', function () {
+    (navigator.clipboard ? navigator.clipboard.writeText(AI_PROMPT) : Promise.reject()).then(
+      function () { msg('AI に頼む文章を、コピーしました。AI のチャットに貼り付けて、その下に、語を書いて送ってください。', 'ok'); },
+      function () { $('bkText').value = AI_PROMPT; $('bkText').select(); msg('自動でコピーできませんでした。下の欄に、文章を入れたので、全部を選んで、コピーしてください。', 'err'); });
+  });
+
   // --- AI service: presets, the list of usable models, and plain-language reasons for failure
   var PROV = {
     gemini: { base: 'https://generativelanguage.googleapis.com/v1beta/openai', hint: 'gemini-2.0-flash' },
